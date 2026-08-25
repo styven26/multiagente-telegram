@@ -290,32 +290,34 @@ export default function PaginaCapsulas() {
                 />
               </div>
             ) : (
-              <div className="flex gap-5 p-5">
-                <span
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md font-mono text-[13px]"
-                  style={{ backgroundColor: `${color}1a`, color }}
-                >
-                  {c.orden}
-                </span>
+              <div className="flex flex-col gap-4 p-4 sm:flex-row sm:gap-5 sm:p-5">
+                <div className="flex min-w-0 flex-1 gap-4">
+                  <span
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md font-mono text-[13px]"
+                    style={{ backgroundColor: `${color}1a`, color }}
+                  >
+                    {c.orden}
+                  </span>
 
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-[16px] font-medium text-[#1a1830]">{c.titulo}</h2>
-                  <p className="mt-1 text-[13.5px] text-[#6b6788]">{c.objetivo}</p>
-                  <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-[#8e8ba5]">
-                    {c.contenido}
-                  </p>
-                  <p className="mt-2.5 font-mono text-[10.5px] uppercase tracking-[0.12em] text-[#a5a2b8]">
-                    {c.duracion_min} min · {DIFICULTAD[c.dificultad]} · {c.id}
-                  </p>
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-[15.5px] font-medium text-[#1a1830]">{c.titulo}</h2>
+                    <p className="mt-1 text-[13.5px] text-[#6b6788]">{c.objetivo}</p>
+                    <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-[#8e8ba5]">
+                      {c.contenido}
+                    </p>
+                    <p className="mt-2.5 break-all font-mono text-[10.5px] uppercase tracking-[0.12em] text-[#a5a2b8]">
+                      {c.duracion_min} min · {DIFICULTAD[c.dificultad]} · {c.id}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex shrink-0 flex-col items-end justify-between">
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-1 pl-[3.25rem] sm:flex-col sm:items-end sm:justify-between sm:gap-0 sm:pl-0">
                   <button
                     disabled={ocupado === c.id}
                     onClick={() => accion(c.id, () => alternarCapsula(c.id),
                       (r) => setCapsulas((p) => p.map((x) => (x.id === r.id ? r : x))))}
                     aria-pressed={c.activo}
-                    className="flex items-center gap-2.5 disabled:opacity-40"
+                    className="order-3 flex items-center gap-2.5 disabled:opacity-40 sm:order-1"
                   >
                     <span className="font-mono text-[10.5px] uppercase tracking-[0.14em]"
                           style={{ color: c.activo ? color : "#a5a2b8" }}>
@@ -330,19 +332,18 @@ export default function PaginaCapsulas() {
 
                   <Link
                     href={`/temas/${topicId}/${c.id}`}
-                    className="rounded-md px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6b6788] transition hover:bg-[#1a1830]/5 hover:text-[#1a1830]"
+                    className="order-1 rounded-md px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6b6788] transition hover:bg-[#1a1830]/5 hover:text-[#1a1830] sm:order-2"
                   >
                     Preguntas
                   </Link>
 
                   <button
                     onClick={() => abrirEdicion(c)}
-                    className="rounded-md px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6b6788] transition hover:bg-[#1a1830]/5 hover:text-[#1a1830]"
+                    className="order-2 rounded-md px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6b6788] transition hover:bg-[#1a1830]/5 hover:text-[#1a1830] sm:order-3"
                   >
                     Editar
                   </button>
                 </div>
-
               </div>
             )}
           </li>

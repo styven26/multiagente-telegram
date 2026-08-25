@@ -159,7 +159,7 @@ function Embudo({ registrados, iniciaron, completaron }: {
         })}
       </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-6 border-t border-[#1a1830]/10 pt-5">
+      <div className="mt-5 grid grid-cols-3 gap-3 border-t border-[#1a1830]/10 pt-5 sm:gap-6">
         {pasos.map((p) => (
           <div key={p.etiqueta}>
             <div className="flex items-center gap-2">
@@ -168,7 +168,7 @@ function Embudo({ registrados, iniciaron, completaron }: {
                 {p.etiqueta}
               </p>
             </div>
-            <p className="mt-2 font-display text-[1.5rem] font-medium leading-none"
+            <p className="mt-2 font-display text-[1.15rem] font-medium leading-none sm:text-[1.5rem]"
                style={{ color: p.color }}>
               {p.cifra}
             </p>
@@ -306,44 +306,47 @@ function BarrasTema({ temas }: { temas: DominioTema[] }) {
 
   return (
     <div className="mt-5 overflow-hidden rounded-xl border border-[#1a1830]/10 bg-white">
-      <table className="w-full text-left">
-        <thead>
-          <tr className="border-b border-[#1a1830]/10">
-            {["Tema", "Nivel de dominio", "Promedio", "Respuestas"].map((h) => (
-              <th key={h}
-                  className="px-5 py-3 font-mono text-[10px] font-normal uppercase tracking-[0.14em] text-[#a5a2b8]">
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[#1a1830]/[0.07]">
-          {temas.map((t) => {
-            const color = colorDominio(t.dominio);
-            return (
-              <tr key={t.topic_id} className="transition hover:bg-[#faf8f5]">
-                <td className="max-w-[15rem] truncate px-5 py-3.5 text-[14px] text-[#1a1830]"
-                    title={t.nombre}>
-                  {t.nombre}
-                </td>
-                <td className="px-5 py-3.5">
-                  <div className="h-2 w-full max-w-[18rem] overflow-hidden rounded-full bg-[#1a1830]/[0.07]">
-                    <div className="h-full rounded-full"
-                         style={{ width: pct(t.dominio), backgroundColor: color,
-                                  transition: "width 700ms ease" }} />
-                  </div>
-                </td>
-                <td className="px-5 py-3.5 font-mono text-[12.5px]" style={{ color }}>
-                  {pct(t.dominio)}
-                </td>
-                <td className="px-5 py-3.5 font-mono text-[12px] text-[#a5a2b8]">
-                  {t.respuestas}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[34rem] text-left">
+
+          <thead>
+            <tr className="border-b border-[#1a1830]/10">
+              {["Tema", "Nivel de dominio", "Promedio", "Respuestas"].map((h) => (
+                <th key={h}
+                    className="px-5 py-3 font-mono text-[10px] font-normal uppercase tracking-[0.14em] text-[#a5a2b8]">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#1a1830]/[0.07]">
+            {temas.map((t) => {
+              const color = colorDominio(t.dominio);
+              return (
+                <tr key={t.topic_id} className="transition hover:bg-[#faf8f5]">
+                  <td className="max-w-[15rem] truncate px-5 py-3.5 text-[14px] text-[#1a1830]"
+                      title={t.nombre}>
+                    {t.nombre}
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <div className="h-2 w-full max-w-[18rem] overflow-hidden rounded-full bg-[#1a1830]/[0.07]">
+                      <div className="h-full rounded-full"
+                          style={{ width: pct(t.dominio), backgroundColor: color,
+                                    transition: "width 700ms ease" }} />
+                    </div>
+                  </td>
+                  <td className="px-5 py-3.5 font-mono text-[12.5px]" style={{ color }}>
+                    {pct(t.dominio)}
+                  </td>
+                  <td className="px-5 py-3.5 font-mono text-[12px] text-[#a5a2b8]">
+                    {t.respuestas}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -408,8 +411,8 @@ function TablaEstudiantes({ filas }: { filas: ProgresoEstudiante[] }) {
         ))}
       </div>
 
-      <div className="mt-4 max-h-[26rem] overflow-y-auto rounded-xl border border-[#1a1830]/10 bg-white">
-        <table className="w-full text-left">
+      <div className="mt-4 max-h-[26rem] overflow-auto rounded-xl border border-[#1a1830]/10 bg-white">
+        <table className="w-full min-w-[34rem] text-left">
           <thead className="sticky top-0 z-10 bg-white">
             <tr className="border-b border-[#1a1830]/10">
               {["Código", "Avance por temas", "Aciertos", "Última actividad"].map((h) => (

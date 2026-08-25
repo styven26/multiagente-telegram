@@ -203,53 +203,57 @@ function FilaTema({
   }
 
   return (
-    <li className="flex items-center gap-4 py-4">
-      <span className="text-xl" aria-hidden>{t.emoji}</span>
+    <li className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:gap-4">
+      <div className="flex min-w-0 flex-1 items-start gap-3">
+        <span className="text-xl leading-none" aria-hidden>{t.emoji}</span>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-3">
-          <h3 className="text-[15px] font-medium text-[#1a1830]">{t.nombre}</h3>
-          <span className="font-mono text-[10.5px] text-[#a5a2b8]">{t.id}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <h3 className="text-[15px] font-medium text-[#1a1830]">{t.nombre}</h3>
+            <span className="font-mono text-[10.5px] text-[#a5a2b8]">{t.id}</span>
+          </div>
+          {t.descripcion && <p className="mt-0.5 text-[13px] text-[#6b6788]">{t.descripcion}</p>}
+          {t.prerrequisitos.length > 0 && (
+            <p className="mt-1 text-[12px] text-[#8e8ba5]">
+              Requiere: {t.prerrequisitos.map(nombreDe).join(" · ")}
+            </p>
+          )}
         </div>
-        {t.descripcion && <p className="mt-0.5 text-[13px] text-[#6b6788]">{t.descripcion}</p>}
-        {t.prerrequisitos.length > 0 && (
-          <p className="mt-1 text-[12px] text-[#8e8ba5]">
-            Requiere: {t.prerrequisitos.map(nombreDe).join(" · ")}
-          </p>
-        )}
       </div>
 
-      <Link
-        href={`/temas/${t.id}`}
-        className="rounded-md px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6b6788] transition hover:bg-[#1a1830]/5 hover:text-[#1a1830]"
-      >
-        Micro-Cápsulas
-      </Link>
+      <div className="flex shrink-0 flex-wrap items-center gap-1 pl-8 sm:justify-end sm:pl-0">
+        <Link
+          href={`/temas/${t.id}`}
+          className="rounded-md px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6b6788] transition hover:bg-[#1a1830]/5 hover:text-[#1a1830]"
+        >
+          Micro-Cápsulas
+        </Link>
 
-      <button
-        onClick={() => abrirEdicion(t)}
-        className="rounded-md px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6b6788] transition hover:bg-[#1a1830]/5 hover:text-[#1a1830]"
-      >
-        Editar
-      </button>
+        <button
+          onClick={() => abrirEdicion(t)}
+          className="rounded-md px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#6b6788] transition hover:bg-[#1a1830]/5 hover:text-[#1a1830]"
+        >
+          Editar
+        </button>
 
-      <button
-        disabled={ocupado === t.id}
-        onClick={() => alternar(t)}
-        aria-pressed={t.activo}
-        title={t.activo ? "Ocultar a los estudiantes" : "Mostrar a los estudiantes"}
-        className="flex w-24 items-center justify-end gap-2.5 disabled:opacity-40"
-      >
-        <span className="font-mono text-[10.5px] uppercase tracking-[0.14em]"
-              style={{ color: t.activo ? color : "#a5a2b8" }}>
-          {t.activo ? "Visible" : "Oculto"}
-        </span>
-        <span className="relative h-5 w-9 shrink-0 rounded-full transition"
-              style={{ backgroundColor: t.activo ? color : "rgba(26,24,48,0.18)" }}>
-          <span className={"absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all " +
-                           (t.activo ? "left-[18px]" : "left-0.5")} />
-        </span>
-      </button>
+        <button
+          disabled={ocupado === t.id}
+          onClick={() => alternar(t)}
+          aria-pressed={t.activo}
+          title={t.activo ? "Ocultar a los estudiantes" : "Mostrar a los estudiantes"}
+          className="ml-1 flex items-center gap-2 disabled:opacity-40"
+        >
+          <span className="font-mono text-[10.5px] uppercase tracking-[0.14em]"
+                style={{ color: t.activo ? color : "#a5a2b8" }}>
+            {t.activo ? "Visible" : "Oculto"}
+          </span>
+          <span className="relative h-5 w-9 shrink-0 rounded-full transition"
+                style={{ backgroundColor: t.activo ? color : "rgba(26,24,48,0.18)" }}>
+            <span className={"absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all " +
+                             (t.activo ? "left-[18px]" : "left-0.5")} />
+          </span>
+        </button>
+      </div>
     </li>
   );
 }
