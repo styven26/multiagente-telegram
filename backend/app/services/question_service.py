@@ -29,7 +29,8 @@ async def listar(session: AsyncSession, capsule_id: str,
 
 async def crear(session: AsyncSession, capsule_id: str, tipo: str, enunciado: str,
                 opciones: list[str], correcta: int, retroalimentacion: str | None,
-                dificultad: int, actor_id: int | None) -> Question:
+                dificultad: int, actor_id: int | None,
+                imagen_url: str | None = None) -> Question:
     capsula = await _capsula_o_error(session, capsule_id)
 
     if correcta >= len(opciones):
@@ -40,6 +41,7 @@ async def crear(session: AsyncSession, capsule_id: str, tipo: str, enunciado: st
         topic_id=capsula.topic_id,      # se hereda: nunca se elige aparte
         tipo=tipo,
         enunciado=enunciado,
+        imagen_url=imagen_url,
         opciones=opciones,
         correcta=correcta,
         retroalimentacion=retroalimentacion,
@@ -59,7 +61,8 @@ async def actualizar(session: AsyncSession, question_id: int, actor_id: int | No
                      enunciado: str | None = None, opciones: list[str] | None = None,
                      correcta: int | None = None,
                      retroalimentacion: Any = SIN_CAMBIO,
-                     dificultad: int | None = None) -> Question:
+                     dificultad: int | None = None,
+                     imagen_url: Any = SIN_CAMBIO) -> Question:
     pregunta = await session.get(Question, question_id)
     if pregunta is None:
         raise LookupError(str(question_id))
@@ -95,6 +98,11 @@ async def actualizar(session: AsyncSession, question_id: int, actor_id: int | No
         if nueva != pregunta.retroalimentacion:
             cambios["retroalimentacion"] = [bool(pregunta.retroalimentacion), bool(nueva)]
             pregunta.retroalimentacion = nueva
+    if imagen_url is not SIN_CAMBIO:
+        nueva_img = limpiar(imagen_url)
+        if nueva_img != pregunta.imagen_url:
+            cambios["imagen_url"] = [bool(pregunta.imagen_url), bool(nueva_img)]
+            pregunta.imagen_url = nueva_img
     if dificultad is not None and dificultad != pregunta.dificultad:
         cambios["dificultad"] = [pregunta.dificultad, dificultad]
         pregunta.dificultad = dificultad

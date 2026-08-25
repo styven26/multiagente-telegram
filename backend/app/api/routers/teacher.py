@@ -2,7 +2,10 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+import secrets
+from pathlib import Path
 
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from app.api.deps import docente_actual
 from app.db.base import get_session
 from app.db.models import Teacher
@@ -85,6 +88,7 @@ async def crear_capsula(topic_id: str, datos: CapsuleCreate,
         return await capsule_service.crear(
             s, topic_id, datos.titulo, datos.objetivo, datos.contenido,
             datos.duracion_min, datos.dificultad, docente.id,
+            datos.imagen_url,
         )
     except LookupError:
         raise HTTPException(status_code=404, detail="Tema no encontrado")
@@ -95,9 +99,12 @@ async def editar_capsula(capsule_id: str, datos: CapsuleUpdate,
                          docente: Teacher = Depends(docente_actual),
                          s: AsyncSession = Depends(get_session)):
     try:
+        enviados = datos.model_dump(exclude_unset=True)
+
         return await capsule_service.actualizar(
             s, capsule_id, docente.id, datos.titulo, datos.objetivo,
             datos.contenido, datos.duracion_min, datos.dificultad,
+            imagen_url=enviados.get("imagen_url", SIN_CAMBIO),
         )
     except LookupError:
         raise HTTPException(status_code=404, detail="Cápsula no encontrada")
@@ -131,6 +138,7 @@ async def crear_pregunta(capsule_id: str, datos: QuestionCreate,
         return await question_service.crear(
             s, capsule_id, datos.tipo, datos.enunciado, datos.opciones,
             datos.correcta, datos.retroalimentacion, datos.dificultad, docente.id,
+            datos.imagen_url,
         )
     except LookupError:
         raise HTTPException(status_code=404, detail="Cápsula no encontrada")
@@ -153,6 +161,7 @@ async def editar_pregunta(question_id: int, datos: QuestionUpdate,
             correcta=datos.correcta,
             retroalimentacion=enviados.get("retroalimentacion", SIN_CAMBIO),
             dificultad=datos.dificultad,
+            imagen_url=enviados.get("imagen_url", SIN_CAMBIO),
         )
     except LookupError:
         raise HTTPException(status_code=404, detail="Pregunta no encontrada")
@@ -174,3 +183,42 @@ async def alternar_pregunta(question_id: int,
 async def resumen_docente(docente: Teacher = Depends(docente_actual),
                           s: AsyncSession = Depends(get_session)):
     return await metrics.resumen(s)
+
+
+CARPETA_SUBIDAS = Path("media/uploads")
+TIPOS_PERMITIDOS = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
+TAMANO_MAX = 5 * 1024 * 1024      # 5 MB: Telegram admite más, pero pesa la carga
+
+
+@router.post("/uploads", status_code=201)
+async def subir_imagen(archivo: UploadFile = File(...),
+                       docente: Teacher = Depends(docente_actual)):
+    """Guarda una imagen y devuelve su URL pública.
+
+    El nombre se genera aleatorio: el nombre original puede traer rutas,
+    caracteres raros o colisionar con otro archivo.
+    """
+    extension = TIPOS_PERMITIDOS.get(archivo.content_type or "")
+    if extension is None:
+        raise HTTPException(
+            status_code=415,
+            detail="Formato no admitido. Usa PNG, JPG, WEBP o GIF.",
+        )
+
+    contenido = await archivo.read()
+    if len(contenido) > TAMANO_MAX:
+        raise HTTPException(
+            status_code=413,
+            detail="La imagen supera los 5 MB.",
+        )
+
+    CARPETA_SUBIDAS.mkdir(parents=True, exist_ok=True)
+    nombre = f"{secrets.token_hex(16)}{extension}"
+    (CARPETA_SUBIDAS / nombre).write_bytes(contenido)
+
+    return {"url": f"/media/uploads/{nombre}"}

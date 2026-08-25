@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import SubirImagen from "@/components/SubirImagen";
 
 import {
   alternarPregunta, crearPregunta, editarPregunta, listarCapsulas,
-  listarPreguntas, listarTemas, type Capsula, type Pregunta,
+  listarPreguntas, listarTemas, urlImagen, type Capsula, type Pregunta,
 } from "@/lib/api";
+
 import { colorDeUnidad } from "@/lib/unidades";
 import { LIM, largo, validarPregunta } from "@/lib/limites";
 
@@ -23,12 +25,13 @@ const LETRAS = ["A", "B", "C", "D", "E", "F"];
 const DIFICULTAD = ["", "Básica", "Media", "Alta"];
 
 type Borrador = {
-  tipo: string; enunciado: string; opciones: string[];
+  tipo: string; enunciado: string; imagen_url: string | null; opciones: string[];
   correcta: number; retroalimentacion: string; dificultad: number;
 };
 
 const VACIO: Borrador = {
-  tipo: "opcion_multiple", enunciado: "", opciones: ["", "", "", ""],
+  tipo: "opcion_multiple", enunciado: "", imagen_url: null,
+  opciones: ["", "", "", ""],
   correcta: 0, retroalimentacion: "", dificultad: 1,
 };
 
@@ -88,14 +91,22 @@ function Editor({
         </div>
       </div>
 
-      <div>
-        <label className={etiqueta}>Enunciado</label>
-        <textarea
-          value={valor.enunciado}
-          onChange={(e) => cambiar({ ...valor, enunciado: e.target.value })}
-          rows={2}
-          placeholder="Si x = 5 y luego escribes x = 8, ¿qué contiene x?"
-          className={campo + " resize-y"}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div>
+          <label className={etiqueta}>Enunciado</label>
+          <textarea
+            value={valor.enunciado}
+            onChange={(e) => cambiar({ ...valor, enunciado: e.target.value })}
+            rows={10}
+            placeholder="Si x = 5 y luego escribes x = 8, ¿qué contiene x?"
+            className={campo + " resize-y font-mono text-[13.5px] leading-relaxed"}
+          />
+        </div>
+
+        <SubirImagen
+          valor={valor.imagen_url}
+          cambiar={(u) => cambiar({ ...valor, imagen_url: u })}
+          color={color}
         />
       </div>
 
@@ -245,7 +256,8 @@ export default function PaginaPreguntas() {
     setEditando(p.id);
     setCreando(false);
     setBorrador({
-      tipo: p.tipo, enunciado: p.enunciado, opciones: [...p.opciones],
+      tipo: p.tipo, enunciado: p.enunciado, imagen_url: p.imagen_url,
+      opciones: [...p.opciones],
       correcta: p.correcta, retroalimentacion: p.retroalimentacion ?? "",
       dificultad: p.dificultad,
     });
@@ -326,6 +338,7 @@ export default function PaginaPreguntas() {
                 () => crearPregunta(capsuleId, {
                   tipo: nueva.tipo,
                   enunciado: nueva.enunciado.trim(),
+                  imagen_url: nueva.imagen_url,
                   opciones: nueva.opciones.map((o) => o.trim()),
                   correcta: nueva.correcta,
                   retroalimentacion: nueva.retroalimentacion.trim() || null,
@@ -354,6 +367,7 @@ export default function PaginaPreguntas() {
                       () => editarPregunta(p.id, {
                         tipo: borrador.tipo,
                         enunciado: borrador.enunciado.trim(),
+                        imagen_url: borrador.imagen_url,
                         opciones: borrador.opciones.map((o) => o.trim()),
                         correcta: borrador.correcta,
                         retroalimentacion: borrador.retroalimentacion.trim() || null,
@@ -379,6 +393,12 @@ export default function PaginaPreguntas() {
                   <h2 className="text-[15.5px] font-medium leading-snug text-[#1a1830]">
                     {p.enunciado}
                   </h2>
+
+                  {p.imagen_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={urlImagen(p.imagen_url)!} alt=""
+                         className="mt-3 max-h-40 w-auto rounded-md border border-[#1a1830]/10" />
+                  )}
 
                   <ul className="mt-3 space-y-1.5">
                     {p.opciones.map((op, k) => {

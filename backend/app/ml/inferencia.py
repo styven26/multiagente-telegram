@@ -5,8 +5,10 @@ responda. Cada predicción queda en model_predictions con su resultado real, que
 es lo que permite calcular el AUC **en producción**, no solo en validación.
 
 Si no hay checkpoint configurado, o si el vocabulario del modelo no cubre los
-temas locales, el motor se declara no disponible y el sistema sigue con el
-baseline. Nunca inventa una predicción.
+temas locales, responde el BASELINE: la proporción de aciertos del estudiante
+en ese tema, suavizada. Es deliberadamente simple — su papel es ser la línea
+de comparación contra la que se mide el SAKT sobre las mismas secuencias.
+Sin baseline no habría con qué comparar: el Ciclo 2 se quedaría sin contraste.
 """
 
 from __future__ import annotations
@@ -15,7 +17,7 @@ import logging
 from pathlib import Path
 
 import torch
-from sqlalchemy import select
+from sqlalchemy import Integer, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -23,6 +25,14 @@ from app.db.models import ModelRun, Response
 from app.ml.sakt import SAKT
 
 logger = logging.getLogger(__name__)
+
+# Prior de Laplace: sin evidencia la predicción es 0.5, y las primeras
+# respuestas no la disparan a 0 o 1. PESO_PRIOR equivale a 2 respuestas
+# imaginarias, una correcta y una incorrecta.
+PESO_PRIOR = 2.0
+PRIOR = 0.5
+
+VERSION_BASELINE = "baseline-v1"
 
 
 class MotorKT:
@@ -34,6 +44,7 @@ class MotorKT:
         self.largo: int = 50
         self.version: str | None = None
         self.model_run_id: int | None = None
+        self.baseline_run_id: int | None = None
         self._intentado = False
 
     @property
@@ -75,24 +86,55 @@ class MotorKT:
             return False
 
     async def _resolver_model_run(self, s: AsyncSession) -> int | None:
-        if self.model_run_id is not None or self.version is None:
+        """Fila de model_runs que corresponde al modelo que está prediciendo."""
+        if self.disponible and self.version is not None:
+            if self.model_run_id is None:
+                self.model_run_id = await s.scalar(
+                    select(ModelRun.id).where(ModelRun.version == self.version,
+                                              ModelRun.tipo == "sakt")
+                )
+                if self.model_run_id is None:
+                    logger.warning("El checkpoint %s no tiene fila en model_runs; "
+                                   "no se registrarán predicciones.", self.version)
             return self.model_run_id
-        self.model_run_id = await s.scalar(
-            select(ModelRun.id).where(ModelRun.version == self.version,
-                                      ModelRun.tipo == "sakt")
+
+        return await self._resolver_baseline_run(s)
+
+    async def _resolver_baseline_run(self, s: AsyncSession) -> int | None:
+        """El baseline también necesita su fila: sin model_run_id las
+        predicciones no se guardan y no habría línea de comparación."""
+        if self.baseline_run_id is not None:
+            return self.baseline_run_id
+
+        self.baseline_run_id = await s.scalar(
+            select(ModelRun.id).where(ModelRun.version == VERSION_BASELINE,
+                                      ModelRun.tipo == "baseline")
         )
-        if self.model_run_id is None:
-            logger.warning("El checkpoint %s no tiene fila en model_runs; "
-                           "no se registrarán predicciones.", self.version)
-        return self.model_run_id
+        if self.baseline_run_id is None:
+            logger.warning("No existe la fila '%s' en model_runs: las "
+                           "predicciones del baseline no se registrarán.",
+                           VERSION_BASELINE)
+        return self.baseline_run_id
+
+    async def _predecir_baseline(self, s: AsyncSession, student_id: int,
+                                 topic_id: str) -> float:
+        """Proporción de aciertos del estudiante en el tema, con prior."""
+        n, ok = (await s.execute(
+            select(func.count(Response.id),
+                   func.coalesce(func.sum(func.cast(Response.es_correcta,
+                                                    Integer)), 0))
+            .where(Response.student_id == student_id,
+                   Response.topic_id == topic_id)
+        )).one()
+
+        return (ok + PRIOR * PESO_PRIOR) / (n + PESO_PRIOR)
 
     async def predecir(self, s: AsyncSession, student_id: int,
                        topic_id: str) -> float | None:
         """P(acierto) del estudiante en la siguiente pregunta de `topic_id`."""
-        if not self.cargar():
-            return None
-        if topic_id not in self.vocabulario:
-            return None                      # tema fuera del vocabulario entrenado
+        if not self.cargar() or topic_id not in self.vocabulario:
+            # Sin SAKT, o tema fuera de su vocabulario: responde el baseline.
+            return await self._predecir_baseline(s, student_id, topic_id)
 
         historial = (await s.execute(
             select(Response.topic_id, Response.es_correcta)

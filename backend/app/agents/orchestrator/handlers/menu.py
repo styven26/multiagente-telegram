@@ -7,7 +7,9 @@ Solo se muestra lo que el docente dejó activo en el panel.
 import logging
 from datetime import datetime, timezone
 from html import escape
+from pathlib import Path
 
+from aiogram.types import FSInputFile, InputMediaPhoto
 from aiogram import F, Router
 from aiogram.filters import Command
 from app.db.models import ModelPrediction
@@ -38,6 +40,19 @@ VOLVER = InlineKeyboardButton(text="⬅️ Menú", callback_data="m:inicio")
 
 async def _estudiante(s, tg_id: int) -> Student | None:
     return await s.scalar(select(Student).where(Student.telegram_id == tg_id))
+
+
+# Telegram no puede descargar de localhost: sus servidores están en internet
+# y el backend no. Por eso la imagen se envía como archivo desde disco.
+RAIZ_MEDIA = Path(".")
+
+
+def _archivo_imagen(imagen_url: str | None) -> FSInputFile | None:
+    """Convierte la ruta guardada (/media/uploads/x.png) en un archivo enviable."""
+    if not imagen_url:
+        return None
+    ruta = RAIZ_MEDIA / imagen_url.lstrip("/")
+    return FSInputFile(ruta) if ruta.is_file() else None
 
 
 async def _menu_unidades(s) -> tuple[str, InlineKeyboardMarkup]:
@@ -83,7 +98,15 @@ async def cb_inicio(call: CallbackQuery, state: FSMContext):
     await state.clear()
     async with SessionLocal() as s:
         texto, teclado = await _menu_unidades(s)
-    await call.message.edit_text(texto, reply_markup=teclado)
+
+    # Si el quiz terminó en una pregunta con imagen, el mensaje es una foto:
+    # no se puede convertir en texto, hay que reemplazarlo.
+    if call.message.photo:
+        await call.message.delete()
+        await call.message.answer(texto, reply_markup=teclado)
+    else:
+        await call.message.edit_text(texto, reply_markup=teclado)
+
     await call.answer()
 
 
@@ -195,7 +218,11 @@ async def cb_capsula(call: CallbackQuery, state: FSMContext):
         teclado = InlineKeyboardMarkup(inline_keyboard=[[VOLVER]])
         texto += "\n\n<i>Esta cápsula aún no tiene preguntas.</i>"
 
-    await call.message.edit_text(texto, reply_markup=teclado)
+    if call.message.photo:
+        await call.message.delete()
+        await call.message.answer(texto, reply_markup=teclado)
+    else:
+        await call.message.edit_text(texto, reply_markup=teclado)
     await call.answer()
 
 
@@ -233,31 +260,45 @@ async def _mostrar_pregunta(call: CallbackQuery, state: FSMContext):
     async with SessionLocal() as s:
         pregunta = await s.get(Question, ids[i])
 
-    if pregunta is None:
+    if pregunta is None:                     # el docente la desactivó a mitad
         await state.clear()
-        await call.answer("Esa pregunta ya no está disponible. /menu", show_alert=True)
+        await call.answer("Esa pregunta ya no está disponible. /menu",
+                          show_alert=True)
         return
 
-    letras = ["A", "B", "C", "D", "E", "F"]
-
-    # Las opciones van en el TEXTO, no en los botones: Telegram corta el texto
-    # de un botón según el ancho de pantalla y en móvil se pierde el final.
-    opciones = "\n".join(
-        f"<b>{letras[k]})</b> {escape(op)}"
+    letras = ["🅐", "🅑", "🅒", "🅓", "🅔", "🅕"]
+    botones = [
+        [InlineKeyboardButton(text=f"{letras[k]} {op}", callback_data=f"m:r:{k}")]
         for k, op in enumerate(pregunta.opciones)
-    )
-    fila = [
-        InlineKeyboardButton(text=letras[k], callback_data=f"m:r:{k}")
-        for k in range(len(pregunta.opciones))
     ]
-    botones = [fila] if len(fila) <= 4 else [fila[:3], fila[3:]]
+    teclado = InlineKeyboardMarkup(inline_keyboard=botones)
+    texto = f"<b>Pregunta {i + 1} de {len(ids)}</b>\n\n{pregunta.enunciado}"
 
     await state.update_data(inicio=datetime.now(timezone.utc).timestamp())
-    await call.message.edit_text(
-        f"<b>Pregunta {i + 1} de {len(ids)}</b>\n\n"
-        f"{escape(pregunta.enunciado)}\n\n{opciones}",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=botones),
-    )
+
+    foto = _archivo_imagen(pregunta.imagen_url)
+
+    if foto is None:
+        # Sin imagen: se reescribe el mensaje, como siempre.
+        await call.message.edit_text(texto, reply_markup=teclado)
+    else:
+        if call.message.photo:
+            # La anterior también era foto: se reemplaza en el sitio, sin salto.
+            await call.message.edit_media(
+                InputMediaPhoto(media=foto, caption=texto),
+                reply_markup=teclado,
+            )
+        else:
+            # Se viene de un mensaje de texto: Telegram no deja convertirlo en
+            # foto. Se envía el nuevo primero para que el chat no quede vacío.
+            anterior = call.message
+            await call.message.answer_photo(foto, caption=texto,
+                                            reply_markup=teclado)
+            try:
+                await anterior.delete()
+            except Exception:
+                logger.debug("No se pudo borrar el mensaje anterior", exc_info=True)
+
     await call.answer()
 
 
@@ -343,13 +384,20 @@ async def cb_responder(call: CallbackQuery, state: FSMContext):
         f"❌ <b>Incorrecto</b>\nLa respuesta era: <b>{respuesta_texto}</b>")
     cuerpo = f"\n\n{feedback}" if feedback else ""
 
+    siguiente = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="Siguiente ➡️", callback_data="m:sig")
+    ]])
+
+    # Si la pregunta tenía imagen, el mensaje es una foto: se edita el pie,
+    # no el texto.
+    era_foto = call.message.photo is not None
+
     if i + 1 < len(ids):
-        await call.message.edit_text(
-            cabecera + cuerpo,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="Siguiente ➡️", callback_data="m:sig")
-            ]]),
-        )
+        if era_foto:
+            await call.message.edit_caption(caption=cabecera + cuerpo,
+                                            reply_markup=siguiente)
+        else:
+            await call.message.edit_text(cabecera + cuerpo, reply_markup=siguiente)
     else:
         await _cerrar_quiz(call, state, cabecera + cuerpo)
     await call.answer()
@@ -421,9 +469,12 @@ async def _cerrar_quiz(call: CallbackQuery, state: FSMContext, previo: str):
     else:
         aviso = "🔁 Práctica extra registrada. Tu repaso programado sigue en pie."
 
-    await call.message.edit_text(
-        f"{previo}\n\n———\n\n{marca} <b>Quiz completado</b>\n"
-        f"Aciertos: <b>{aciertos} de {total}</b> ({nivel:.0%})\n\n"
-        f"{aviso}",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[VOLVER]]),
-    )
+    resumen = (f"{previo}\n\n———\n\n{marca} <b>Quiz completado</b>\n"
+               f"Aciertos: <b>{aciertos} de {total}</b> ({nivel:.0%})\n\n"
+               f"{aviso}")
+    volver = InlineKeyboardMarkup(inline_keyboard=[[VOLVER]])
+
+    if call.message.photo:
+        await call.message.edit_caption(caption=resumen, reply_markup=volver)
+    else:
+        await call.message.edit_text(resumen, reply_markup=volver)

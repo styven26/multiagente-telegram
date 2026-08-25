@@ -103,6 +103,7 @@ class CapsuleOut(BaseModel):
     titulo: str
     objetivo: str
     contenido: str
+    imagen_url: str | None = None
     orden: int
     duracion_min: int
     dificultad: int
@@ -115,6 +116,7 @@ class CapsuleCreate(BaseModel):
     titulo: str = Field(min_length=3, max_length=200)
     objetivo: str = Field(min_length=5, max_length=300)
     contenido: str = Field(min_length=10, max_length=3500)
+    imagen_url: str | None = Field(default=None, max_length=500)
     duracion_min: int = Field(default=5, ge=1, le=60)
     dificultad: int = Field(default=1, ge=1, le=3)
 
@@ -128,6 +130,7 @@ class CapsuleUpdate(BaseModel):
     titulo: str | None = Field(default=None, min_length=3, max_length=200)
     objetivo: str | None = Field(default=None, min_length=5, max_length=300)
     contenido: str | None = Field(default=None, min_length=10, max_length=3500)
+    imagen_url: str | None = Field(default=None, max_length=500)
     duracion_min: int | None = Field(default=None, ge=1, le=60)
     dificultad: int | None = Field(default=None, ge=1, le=3)
 
@@ -147,6 +150,7 @@ class QuestionOut(BaseModel):
     topic_id: str
     tipo: str
     enunciado: str
+    imagen_url: str | None = None
     opciones: list[str]
     correcta: int
     retroalimentacion: str | None = None
@@ -159,6 +163,7 @@ class QuestionOut(BaseModel):
 class QuestionCreate(BaseModel):
     tipo: str = Field(default="opcion_multiple")
     enunciado: str = Field(min_length=5, max_length=1000)
+    imagen_url: str | None = Field(default=None, max_length=500)
     opciones: list[str] = Field(min_length=2, max_length=6)
     correcta: int = Field(ge=0)
     retroalimentacion: str | None = Field(default=None, max_length=500)
@@ -194,13 +199,21 @@ class QuestionCreate(BaseModel):
 
 
 class QuestionUpdate(BaseModel):
+    tipo: str | None = Field(default=None)
     enunciado: str | None = Field(default=None, min_length=5, max_length=1000)
+    imagen_url: str | None = Field(default=None, max_length=500)
     opciones: list[str] | None = Field(default=None, min_length=2, max_length=6)
     correcta: int | None = Field(default=None, ge=0)
     retroalimentacion: str | None = Field(default=None, max_length=500)
     dificultad: int | None = Field(default=None, ge=1, le=3)
 
 
+    @field_validator("tipo")
+    @classmethod
+    def _tipo_valido(cls, v):
+        if v is not None and v not in TIPOS_VALIDOS:
+            raise ValueError(f"tipo debe ser uno de: {', '.join(sorted(TIPOS_VALIDOS))}")
+        return v
     @field_validator("enunciado")
     @classmethod
     def _html_ok(cls, v):

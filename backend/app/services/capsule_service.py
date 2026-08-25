@@ -4,6 +4,8 @@
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.patch import SIN_CAMBIO, limpiar
+from typing import Any
 
 from app.db.models import Capsule, Event, Topic
 
@@ -25,7 +27,7 @@ async def listar(session: AsyncSession, topic_id: str,
 
 async def crear(session: AsyncSession, topic_id: str, titulo: str, objetivo: str,
                 contenido: str, duracion_min: int, dificultad: int,
-                actor_id: int | None) -> Capsule:
+                actor_id: int | None, imagen_url: str | None = None) -> Capsule:
     await _tema_o_error(session, topic_id)
 
     siguiente = (await session.scalar(
@@ -41,7 +43,7 @@ async def crear(session: AsyncSession, topic_id: str, titulo: str, objetivo: str
 
     capsula = Capsule(
         id=cid, topic_id=topic_id, titulo=titulo, objetivo=objetivo,
-        contenido=contenido, orden=siguiente, duracion_min=duracion_min,
+        contenido=contenido, imagen_url=imagen_url, orden=siguiente, duracion_min=duracion_min,
         dificultad=dificultad, activo=True,
     )
     session.add(capsula)
@@ -56,7 +58,7 @@ async def crear(session: AsyncSession, topic_id: str, titulo: str, objetivo: str
 async def actualizar(session: AsyncSession, capsule_id: str, actor_id: int | None,
                      titulo: str | None = None, objetivo: str | None = None,
                      contenido: str | None = None, duracion_min: int | None = None,
-                     dificultad: int | None = None) -> Capsule:
+                     dificultad: int | None = None, imagen_url: Any = SIN_CAMBIO) -> Capsule:
     capsula = await session.get(Capsule, capsule_id)
     if capsula is None:
         raise LookupError(capsule_id)
@@ -77,6 +79,11 @@ async def actualizar(session: AsyncSession, capsule_id: str, actor_id: int | Non
     if dificultad is not None and dificultad != capsula.dificultad:
         cambios["dificultad"] = [capsula.dificultad, dificultad]
         capsula.dificultad = dificultad
+    if imagen_url is not SIN_CAMBIO:
+        nueva_img = limpiar(imagen_url)
+        if nueva_img != capsula.imagen_url:
+            cambios["imagen_url"] = [bool(capsula.imagen_url), bool(nueva_img)]
+            capsula.imagen_url = nueva_img
 
     if cambios:
         session.add(Event(ciclo=1, tipo="admin_capsula_editada",

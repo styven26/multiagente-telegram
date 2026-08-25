@@ -581,6 +581,11 @@ class Capsule(Base):
         nullable=False,
     )
 
+    imagen_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
     orden: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -721,6 +726,11 @@ class Question(Base):
     enunciado: Mapped[str] = mapped_column(
         Text,
         nullable=False,
+    )
+
+    imagen_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
     )
 
     opciones: Mapped[list] = mapped_column(
