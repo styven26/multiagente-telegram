@@ -66,7 +66,7 @@ function Formulario({
       </div>
 
       <div>
-        <label className={etiqueta}>Contenido</label>
+        <label className={etiqueta}>Descripción</label>
         <textarea
           value={valor.contenido}
           onChange={(e) => cambiar({ ...valor, contenido: e.target.value })}
@@ -267,7 +267,7 @@ export default function PaginaCapsulas() {
             {editando === c.id ? (
               <div className="p-6">
                 <h2 className="mb-5 font-display text-[1.2rem] font-medium text-[#1a1830]">
-                  Editar cápsula
+                  Editar micro-cápsula
                 </h2>
                 <Formulario
                   valor={borrador} cambiar={setBorrador} color={color}

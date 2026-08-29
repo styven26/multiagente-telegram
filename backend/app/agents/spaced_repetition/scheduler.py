@@ -7,7 +7,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.config import settings
 from app.db.base import SessionLocal
-from app.services import reminder_service, session_service
+from app.agents.spaced_repetition import reminder_service
+from app.services import session_service
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,14 @@ async def ciclo_sesiones() -> None:
 
 def crear_scheduler(bot: Bot) -> AsyncIOScheduler:
     sch = AsyncIOScheduler(timezone=settings.TIMEZONE)
+
+    sch.add_job(
+        ciclo_repasos, "interval",
+        minutes=INTERVALO_MINUTOS, id="ciclo_repasos",
+        args=[bot],
+        max_instances=1, coalesce=True,
+    )
+
     sch.add_job(
         ciclo_sesiones, "interval",
         minutes=15, id="ciclo_sesiones",

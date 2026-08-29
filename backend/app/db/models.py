@@ -239,18 +239,6 @@ class Student(Base):
         passive_deletes=True,
     )
 
-    sus_responses: Mapped[list["SUSResponse"]] = relationship(
-        "SUSResponse",
-        back_populates="student",
-        passive_deletes=True,
-    )
-
-    asignaciones_docente: Mapped[list["TeacherStudentAssignment"]] = relationship(
-        "TeacherStudentAssignment",
-        back_populates="student",
-        passive_deletes=True,
-    )
-
 
 # ============================================================
 # 2. TEACHERS
@@ -320,84 +308,9 @@ class Teacher(Base):
         onupdate=func.now(),
     )
 
-    asignaciones: Mapped[list["TeacherStudentAssignment"]] = relationship(
-        "TeacherStudentAssignment",
-        back_populates="teacher",
-        passive_deletes=True,
-    )
-
 
 # ============================================================
-# 3. TEACHER - STUDENT ASSIGNMENTS
-# ============================================================
-
-class TeacherStudentAssignment(Base):
-    """
-    Relación entre docentes e integrantes del grupo de estudiantes.
-
-    Permite que el dashboard muestre:
-        - estudiantes asignados
-        - progreso
-        - mastery
-        - actividad
-        - rendimiento
-    """
-
-    __tablename__ = "teacher_student_assignments"
-
-    __table_args__ = (
-        UniqueConstraint(
-            "teacher_id",
-            "student_id",
-            name="uq_teacher_student_assignment",
-        ),
-    )
-
-    id: Mapped[int] = mapped_column(
-        Integer,
-        primary_key=True,
-        autoincrement=True,
-    )
-
-    teacher_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey(
-            "teachers.id",
-            ondelete="RESTRICT",
-        ),
-        nullable=False,
-        index=True,
-    )
-
-    student_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey(
-            "students.id",
-            ondelete="RESTRICT",
-        ),
-        nullable=False,
-        index=True,
-    )
-
-    creado_en: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-    )
-
-    teacher: Mapped["Teacher"] = relationship(
-        "Teacher",
-        back_populates="asignaciones",
-    )
-
-    student: Mapped["Student"] = relationship(
-        "Student",
-        back_populates="asignaciones_docente",
-    )
-
-
-# ============================================================
-# 4. TOPICS
+# 3. TOPICS
 # ============================================================
 
 class Topic(Base):
@@ -505,7 +418,7 @@ class Topic(Base):
 
 
 # ============================================================
-# 5. CAPSULES
+# 4. CAPSULES
 # ============================================================
 
 class Capsule(Base):
@@ -645,7 +558,7 @@ class Capsule(Base):
 
 
 # ============================================================
-# 6. QUESTIONS
+# 5. QUESTIONS
 # ============================================================
 
 class Question(Base):
@@ -787,7 +700,7 @@ class Question(Base):
 
 
 # ============================================================
-# 7. STUDY SESSIONS
+# 6. STUDY SESSIONS
 # ============================================================
 
 class StudySession(Base):
@@ -942,7 +855,7 @@ class StudySession(Base):
 
 
 # ============================================================
-# 8. RESPONSES
+# 7. RESPONSES
 # ============================================================
 
 class Response(Base):
@@ -1101,7 +1014,7 @@ class Response(Base):
 
 
 # ============================================================
-# 9. MASTERY
+# 8. MASTERY
 # ============================================================
 
 class Mastery(Base):
@@ -1237,7 +1150,7 @@ class Mastery(Base):
 
 
 # ============================================================
-# 10. EVENTS
+# 9. EVENTS
 # ============================================================
 
 class Event(Base):
@@ -1347,7 +1260,7 @@ class Event(Base):
 
 
 # ============================================================
-# 11. PEDAGOGICAL DECISIONS
+# 10. PEDAGOGICAL DECISIONS
 # ============================================================
 
 class PedagogicalDecision(Base):
@@ -1512,7 +1425,7 @@ class PedagogicalDecision(Base):
 
 
 # ============================================================
-# 12. SPACED REPETITION
+# 11. SPACED REPETITION
 # ============================================================
 
 class SpacedRepetition(Base):
@@ -1722,7 +1635,7 @@ class SpacedRepetition(Base):
 
 
 # ============================================================
-# 13. REMINDERS
+# 12. REMINDERS
 # ============================================================
 
 class Reminder(Base):
@@ -1851,7 +1764,7 @@ class Reminder(Base):
 
 
 # ============================================================
-# 14. MODEL RUNS
+# 13. MODEL RUNS
 # ============================================================
 
 class ModelRun(Base):
@@ -2008,7 +1921,7 @@ class ModelRun(Base):
 
 
 # ============================================================
-# 15. MODEL PREDICTIONS
+# 14. MODEL PREDICTIONS
 # ============================================================
 
 class ModelPrediction(Base):
@@ -2129,7 +2042,7 @@ class ModelPrediction(Base):
 
 
 # ============================================================
-# 16. AGENT INTERACTIONS
+# 15. AGENT INTERACTIONS
 # ============================================================
 
 class AgentInteraction(Base):
@@ -2276,138 +2189,12 @@ class AgentInteraction(Base):
 
 
 # ============================================================
-# 17. SUS RESPONSES
-# ============================================================
-
-class SUSResponse(Base):
-    """
-    System Usability Scale.
-
-    SUS tiene 10 preguntas con valores de 1 a 5.
-
-    score:
-        puntuación SUS final de 0 a 100.
-    """
-
-    __tablename__ = "sus_responses"
-
-    __table_args__ = (
-        CheckConstraint(
-            "q1 BETWEEN 1 AND 5",
-            name="ck_sus_q1",
-        ),
-        CheckConstraint(
-            "q2 BETWEEN 1 AND 5",
-            name="ck_sus_q2",
-        ),
-        CheckConstraint(
-            "q3 BETWEEN 1 AND 5",
-            name="ck_sus_q3",
-        ),
-        CheckConstraint(
-            "q4 BETWEEN 1 AND 5",
-            name="ck_sus_q4",
-        ),
-        CheckConstraint(
-            "q5 BETWEEN 1 AND 5",
-            name="ck_sus_q5",
-        ),
-        CheckConstraint(
-            "q6 BETWEEN 1 AND 5",
-            name="ck_sus_q6",
-        ),
-        CheckConstraint(
-            "q7 BETWEEN 1 AND 5",
-            name="ck_sus_q7",
-        ),
-        CheckConstraint(
-            "q8 BETWEEN 1 AND 5",
-            name="ck_sus_q8",
-        ),
-        CheckConstraint(
-            "q9 BETWEEN 1 AND 5",
-            name="ck_sus_q9",
-        ),
-        CheckConstraint(
-            "q10 BETWEEN 1 AND 5",
-            name="ck_sus_q10",
-        ),
-        CheckConstraint(
-            "score >= 0 AND score <= 100",
-            name="ck_sus_score",
-        ),
-        Index(
-            "ix_sus_student_date",
-            "student_id",
-            "enviado_en",
-        ),
-    )
-
-    id: Mapped[int] = mapped_column(
-        Integer,
-        primary_key=True,
-        autoincrement=True,
-    )
-
-    student_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey(
-            "students.id",
-            ondelete="RESTRICT",
-        ),
-        nullable=False,
-        index=True,
-    )
-
-    fase: Mapped[str] = mapped_column(
-        String(32),
-        nullable=False,
-        default="ciclo_3",
-        server_default="ciclo_3",
-    )
-
-    q1: Mapped[int] = mapped_column(Integer, nullable=False)
-    q2: Mapped[int] = mapped_column(Integer, nullable=False)
-    q3: Mapped[int] = mapped_column(Integer, nullable=False)
-    q4: Mapped[int] = mapped_column(Integer, nullable=False)
-    q5: Mapped[int] = mapped_column(Integer, nullable=False)
-    q6: Mapped[int] = mapped_column(Integer, nullable=False)
-    q7: Mapped[int] = mapped_column(Integer, nullable=False)
-    q8: Mapped[int] = mapped_column(Integer, nullable=False)
-    q9: Mapped[int] = mapped_column(Integer, nullable=False)
-    q10: Mapped[int] = mapped_column(Integer, nullable=False)
-
-    score: Mapped[float] = mapped_column(
-        Float,
-        nullable=False,
-    )
-
-    comentario: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-    )
-
-    enviado_en: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-        index=True,
-    )
-
-    student: Mapped["Student"] = relationship(
-        "Student",
-        back_populates="sus_responses",
-    )
-
-
-# ============================================================
 # EXPORT
 # ============================================================
 
 __all__ = [
     "Student",
     "Teacher",
-    "TeacherStudentAssignment",
     "Topic",
     "Capsule",
     "Question",
@@ -2421,5 +2208,4 @@ __all__ = [
     "ModelRun",
     "ModelPrediction",
     "AgentInteraction",
-    "SUSResponse",
 ]

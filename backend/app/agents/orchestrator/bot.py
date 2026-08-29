@@ -8,6 +8,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
 
+from app.agents.assessment import quiz
 from app.agents.orchestrator.handlers import menu, salir, start
 from app.agents.orchestrator.middlewares import ConsentimientoMiddleware
 from app.config import settings
@@ -27,6 +28,7 @@ def crear_dispatcher() -> Dispatcher:
     dp.update.outer_middleware(ConsentimientoMiddleware())
     dp.include_router(start.router)
     dp.include_router(menu.router)
+    dp.include_router(quiz.router)
     dp.include_router(salir.router)
     return dp
     
