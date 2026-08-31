@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { guardarToken, login } from "@/lib/api";
+import { validarClave, validarEmail } from "@/lib/limites";
 
 const NODOS = [
   { id: "UNIDAD: 1", nombre: "Conceptos básicos", x: 58, y: 62 },
@@ -72,9 +73,15 @@ export default function PaginaLogin() {
   const [verClave, setVerClave] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cargando, setCargando] = useState(false);
+  const [tocado, setTocado] = useState({ email: false, clave: false });
+
+  const errEmail = validarEmail(email);
+  const errClave = validarClave(password);
+  const listo = !errEmail && !errClave;
 
   async function enviar() {
-    if (!email || !password || cargando) return;
+    setTocado({ email: true, clave: true });
+    if (!listo || cargando) return;
     setError(null);
     setCargando(true);
     try {
@@ -145,16 +152,21 @@ export default function PaginaLogin() {
           <div className="mt-10 space-y-6">
             <div>
               <label htmlFor="email" className={etiqueta}>Correo</label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                placeholder="docente@gmail.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && enviar()}
-                className={campo}
-              />
+                <input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="docente@gmail.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  onBlur={() => setTocado((t) => ({ ...t, email: true }))}
+                  onKeyDown={(e) => e.key === "Enter" && enviar()}
+                  aria-invalid={tocado.email && !!errEmail}
+                  className={campo + (tocado.email && errEmail ? " border-[#c0392b]" : "")}
+                />
+                {tocado.email && errEmail && (
+                  <p className="mt-1.5 text-[12.5px] text-[#c0392b]">{errEmail}</p>
+                )}
             </div>
 
             <div>
@@ -168,15 +180,20 @@ export default function PaginaLogin() {
                   {verClave ? "Ocultar" : "Mostrar"}
                 </button>
               </div>
-              <input
-                id="password"
-                type={verClave ? "text" : "password"}
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && enviar()}
-                className={campo}
-              />
+                <input
+                  id="password"
+                  type={verClave ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onBlur={() => setTocado((t) => ({ ...t, clave: true }))}
+                  onKeyDown={(e) => e.key === "Enter" && enviar()}
+                  aria-invalid={tocado.clave && !!errClave}
+                  className={campo + (tocado.clave && errClave ? " border-[#c0392b]" : "")}
+                />
+                {tocado.clave && errClave && (
+                  <p className="mt-1.5 text-[12.5px] text-[#c0392b]">{errClave}</p>
+                )}
             </div>
 
             {error && (
@@ -190,7 +207,7 @@ export default function PaginaLogin() {
 
             <button
               onClick={enviar}
-              disabled={cargando || !email || !password}
+              disabled={cargando}
               className="w-full rounded-md bg-[#1a1830] px-4 py-3 text-[15px] font-medium text-white transition
                          hover:bg-[#2a2750] focus:outline-none focus:ring-4 focus:ring-[#e0a030]/30
                          disabled:cursor-not-allowed disabled:bg-[#1a1830]/25"

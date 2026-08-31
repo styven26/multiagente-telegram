@@ -20,7 +20,7 @@ from aiogram.types import (
 )
 from sqlalchemy import Integer, func, select
 
-from app.agents.base import VOLVER, estudiante_por_telegram as _estudiante
+from app.agents.base import VOLVER, estudiante_por_telegram as _estudiante, traza
 from app.agents.spaced_repetition import sm2 as sr_service
 from app.agents.student_model.inferencia import motor as motor_kt
 from app.db.base import SessionLocal
@@ -154,50 +154,58 @@ async def cb_responder(call: CallbackQuery, state: FSMContext):
             await call.answer("No disponible. Escribe /menu.", show_alert=True)
             return
 
-        correcta = seleccion == pregunta.correcta
+        async with traza(s, "evaluation", "calificar_respuesta",
+                         student_id=est.id, session_id=datos["session_id"],
+                         entrada={"question_id": pregunta.id,
+                                  "seleccion": seleccion}) as t:
+            correcta = seleccion == pregunta.correcta
 
-        # Predicción ANTES de guardar la respuesta: si se hiciera después, el
-        # historial ya incluiría el resultado que se está prediciendo.
-        probabilidad = await motor_kt.predecir(s, est.id, pregunta.topic_id)
+            # Predicción ANTES de guardar la respuesta: si se hiciera después, el
+            # historial ya incluiría el resultado que se está prediciendo.
+            probabilidad = await motor_kt.predecir(s, est.id, pregunta.topic_id)
 
-        # orden_interaccion es único por estudiante: la secuencia que usa el SAKT
-        ultimo = await s.scalar(
-            select(func.max(Response.orden_interaccion))
-            .where(Response.student_id == est.id)
-        ) or 0
+            # orden_interaccion es único por estudiante: la secuencia del SAKT
+            ultimo = await s.scalar(
+                select(func.max(Response.orden_interaccion))
+                .where(Response.student_id == est.id)
+            ) or 0
 
-        # cuántas veces ya había respondido ESTA pregunta
-        intentos_previos = await s.scalar(
-            select(func.count(Response.id)).where(
-                Response.student_id == est.id,
-                Response.question_id == pregunta.id,
-            )
-        ) or 0
+            # cuántas veces ya había respondido ESTA pregunta
+            intentos_previos = await s.scalar(
+                select(func.count(Response.id)).where(
+                    Response.student_id == est.id,
+                    Response.question_id == pregunta.id,
+                )
+            ) or 0
 
-        s.add(Response(
-            student_id=est.id, session_id=datos["session_id"],
-            question_id=pregunta.id, topic_id=pregunta.topic_id,
-            orden_interaccion=ultimo + 1, intento=intentos_previos + 1,
-            seleccion=seleccion, es_correcta=correcta,
-            tiempo_seg=round(tiempo, 2),
-        ))
+            s.add(Response(
+                student_id=est.id, session_id=datos["session_id"],
+                question_id=pregunta.id, topic_id=pregunta.topic_id,
+                orden_interaccion=ultimo + 1, intento=intentos_previos + 1,
+                seleccion=seleccion, es_correcta=correcta,
+                tiempo_seg=round(tiempo, 2),
+            ))
 
-        if probabilidad is not None:
-            run_id = await motor_kt._resolver_model_run(s)
-            if run_id is not None:
-                s.add(ModelPrediction(
-                    student_id=est.id, model_run_id=run_id,
-                    question_id=pregunta.id, topic_id=pregunta.topic_id,
-                    secuencia=ultimo + 1,
-                    probabilidad=probabilidad,
-                    resultado_real=correcta,
-                    error_absoluto=abs(probabilidad - (1.0 if correcta else 0.0)),
-                ))
+            if probabilidad is not None:
+                run_id = await motor_kt._resolver_model_run(s)
+                if run_id is not None:
+                    s.add(ModelPrediction(
+                        student_id=est.id, model_run_id=run_id,
+                        question_id=pregunta.id, topic_id=pregunta.topic_id,
+                        secuencia=ultimo + 1,
+                        probabilidad=probabilidad,
+                        resultado_real=correcta,
+                        error_absoluto=abs(probabilidad - (1.0 if correcta else 0.0)),
+                    ))
 
-        s.add(Event(student_id=est.id, session_id=datos["session_id"], ciclo=1,
-                    tipo="pregunta_respondida",
-                    payload={"question_id": pregunta.id, "correcta": correcta,
-                             "intento": intentos_previos + 1}))
+            s.add(Event(student_id=est.id, session_id=datos["session_id"], ciclo=1,
+                        tipo="pregunta_respondida",
+                        payload={"question_id": pregunta.id, "correcta": correcta,
+                                 "intento": intentos_previos + 1}))
+
+            t["salida"] = {"es_correcta": correcta,
+                           "probabilidad_previa": probabilidad}
+
         await s.commit()
 
         respuesta_texto = escape(pregunta.opciones[pregunta.correcta])

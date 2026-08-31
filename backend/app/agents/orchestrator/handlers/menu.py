@@ -17,7 +17,7 @@ from aiogram.types import (
 )
 from sqlalchemy import func, select
 
-from app.agents.base import VOLVER, estudiante_por_telegram as _estudiante
+from app.agents.base import VOLVER, estudiante_por_telegram as _estudiante, traza
 from app.db.base import SessionLocal
 from app.db.models import Capsule, Event, Question, StudySession, Topic
 
@@ -153,25 +153,36 @@ async def cb_capsula(call: CallbackQuery, state: FSMContext):
             await call.answer("No disponible.", show_alert=True)
             return
 
-        # Reutiliza la sesión abierta si vuelve a la misma cápsula sin terminarla.
-        sesion = await s.scalar(
-            select(StudySession).where(
-                StudySession.student_id == est.id,
-                StudySession.capsule_id == capsule_id,
-                StudySession.finalizada_en.is_(None),
-            ).order_by(StudySession.iniciada_en.desc())
-        )
-
-        if sesion is None:
-            sesion = StudySession(
-                student_id=est.id, capsule_id=capsule_id,
-                ciclo=1, estrategia="fija", completada=False,
+        async with traza(s, "orchestrator", "abrir_capsula",
+                         student_id=est.id,
+                         entrada={"capsule_id": capsule_id}) as t:
+            # Reutiliza la sesión abierta si vuelve a la misma cápsula sin
+            # terminarla: si no, cada reapertura inflaría el denominador de la
+            # tasa de finalización.
+            sesion = await s.scalar(
+                select(StudySession).where(
+                    StudySession.student_id == est.id,
+                    StudySession.capsule_id == capsule_id,
+                    StudySession.finalizada_en.is_(None),
+                ).order_by(StudySession.iniciada_en.desc())
             )
-            s.add(sesion)
-            await s.flush()
 
-        s.add(Event(student_id=est.id, session_id=sesion.id, ciclo=1,
-                    tipo="capsula_abierta", payload={"capsule_id": capsule_id}))
+            reutilizada = sesion is not None
+            if sesion is None:
+                sesion = StudySession(
+                    student_id=est.id, capsule_id=capsule_id,
+                    ciclo=1, estrategia="fija", completada=False,
+                )
+                s.add(sesion)
+                await s.flush()
+
+            s.add(Event(student_id=est.id, session_id=sesion.id, ciclo=1,
+                        tipo="capsula_abierta",
+                        payload={"capsule_id": capsule_id}))
+
+            t["session_id"] = sesion.id
+            t["salida"] = {"session_id": sesion.id, "reutilizada": reutilizada}
+
         await s.commit()
 
         session_id = sesion.id

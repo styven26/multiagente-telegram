@@ -18,6 +18,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.base import traza
 from app.db.models import Event, SpacedRepetition
 
 EF_MINIMO = 1.3
@@ -64,55 +65,62 @@ async def registrar_repaso(s: AsyncSession, student_id: int, topic_id: str,
             ajuste_red_neuronal=1.0, activo=True,
         )
         s.add(sr)
+    
+    async with traza(s, "spaced_repetition", "programar_repaso",
+                     student_id=student_id, session_id=session_id,
+                     entrada={"capsule_id": capsule_id, "calidad": calidad}) as t:
 
+        # --- Guardián: repaso adelantado = práctica extra, no avanza ---
+        if sr.proxima_revision_en is not None and ahora < sr.proxima_revision_en:
+            s.add(Event(
+                student_id=student_id, session_id=session_id, ciclo=1,
+                tipo="practica_extra",
+                payload={"capsule_id": capsule_id, "calidad": calidad,
+                         "programado_para": sr.proxima_revision_en.isoformat()},
+            ))
+            t["salida"] = {"conto": False, "motivo": "repaso_adelantado"}
+            return sr, False
 
-    # --- Guardián: repaso adelantado = práctica extra, no avanza el calendario ---
-    if sr.proxima_revision_en is not None and ahora < sr.proxima_revision_en:
+        # --- Ease factor ---
+        delta = 0.1 - (5 - calidad) * (0.08 + (5 - calidad) * 0.02)
+        sr.ease_factor = max(EF_MINIMO, sr.ease_factor + delta)
+
+        # --- Intervalo y repeticiones ---
+        if calidad < 3:
+            sr.repeticiones = 0
+            sr.errores += 1
+            intervalo = 1
+        else:
+            if sr.repeticiones == 0:
+                intervalo = 1
+            elif sr.repeticiones == 1:
+                intervalo = 6
+            else:
+                intervalo = round(sr.intervalo_dias * sr.ease_factor)
+            sr.repeticiones += 1
+
+        intervalo = max(1, round(intervalo * sr.ajuste_red_neuronal))
+        intervalo = min(intervalo, INTERVALO_MAX_DIAS)
+
+        sr.calidad = calidad
+        sr.intervalo_dias = intervalo
+        # Dificultad normalizada 0-1 (0 = fácil, 1 = difícil). El EF puede subir
+        # por encima de 2.5, así que se acota: ck_spaced_difficulty exige ese rango.
+        sr.dificultad = round(min(1.0, max(0.0, (2.5 - sr.ease_factor) / 2.4 + 0.5)), 4)
+        sr.estabilidad = float(intervalo)
+        sr.ultima_revision_en = ahora
+        sr.proxima_revision_en = ahora + timedelta(days=intervalo)
+        sr.activo = True
+
         s.add(Event(
             student_id=student_id, session_id=session_id, ciclo=1,
-            tipo="practica_extra",
+            tipo="repaso_programado",
             payload={"capsule_id": capsule_id, "calidad": calidad,
-                     "programado_para": sr.proxima_revision_en.isoformat()},
+                     "intervalo_dias": intervalo,
+                     "ease_factor": round(sr.ease_factor, 3)},
         ))
-        return sr, False
 
-
-    # --- Ease factor ---
-    delta = 0.1 - (5 - calidad) * (0.08 + (5 - calidad) * 0.02)
-    sr.ease_factor = max(EF_MINIMO, sr.ease_factor + delta)
-
-    # --- Intervalo y repeticiones ---
-    if calidad < 3:
-        sr.repeticiones = 0
-        sr.errores += 1
-        intervalo = 1
-    else:
-        if sr.repeticiones == 0:
-            intervalo = 1
-        elif sr.repeticiones == 1:
-            intervalo = 6
-        else:
-            intervalo = round(sr.intervalo_dias * sr.ease_factor)
-        sr.repeticiones += 1
-
-    intervalo = max(1, round(intervalo * sr.ajuste_red_neuronal))
-    intervalo = min(intervalo, INTERVALO_MAX_DIAS)
-
-    sr.calidad = calidad
-    sr.intervalo_dias = intervalo
-    # Dificultad normalizada 0-1 (0 = fácil, 1 = difícil). El EF puede subir por
-    # encima de 2.5, así que se acota: ck_spaced_difficulty exige ese rango.
-    sr.dificultad = round(min(1.0, max(0.0, (2.5 - sr.ease_factor) / 2.4 + 0.5)), 4)
-    sr.estabilidad = float(intervalo)
-    sr.ultima_revision_en = ahora
-    sr.proxima_revision_en = ahora + timedelta(days=intervalo)
-    sr.activo = True
-
-    s.add(Event(
-        student_id=student_id, session_id=session_id, ciclo=1,
-        tipo="repaso_programado",
-        payload={"capsule_id": capsule_id, "calidad": calidad,
-                 "intervalo_dias": intervalo,
-                 "ease_factor": round(sr.ease_factor, 3)},
-    ))
-    return sr, True 
+        t["salida"] = {"conto": True, "intervalo_dias": intervalo,
+                       "repeticiones": sr.repeticiones,
+                       "ease_factor": round(sr.ease_factor, 3)}
+        return sr, True

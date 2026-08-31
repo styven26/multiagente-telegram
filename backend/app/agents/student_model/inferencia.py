@@ -17,6 +17,7 @@ import logging
 from pathlib import Path
 
 import torch
+from app.agents.base import traza
 from sqlalchemy import Integer, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -134,7 +135,12 @@ class MotorKT:
         """P(acierto) del estudiante en la siguiente pregunta de `topic_id`."""
         if not self.cargar() or topic_id not in self.vocabulario:
             # Sin SAKT, o tema fuera de su vocabulario: responde el baseline.
-            return await self._predecir_baseline(s, student_id, topic_id)
+            async with traza(s, "student_model", "predecir",
+                             student_id=student_id,
+                             entrada={"topic_id": topic_id}) as t:
+                p = await self._predecir_baseline(s, student_id, topic_id)
+                t["salida"] = {"probabilidad": round(p, 4), "modelo": "baseline"}
+                return p
 
         historial = (await s.execute(
             select(Response.topic_id, Response.es_correcta)
