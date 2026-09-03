@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     ENV: str = "development"
     LOG_LEVEL: str = "INFO"
     TIMEZONE: str = "America/Guayaquil"
+    REDIS_URL: str = "redis://localhost:6379/0"
 
     # --- Investigación / ética ---
     ANON_SALT: str

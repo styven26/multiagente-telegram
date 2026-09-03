@@ -5,7 +5,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import BotCommand
 
 from app.agents.assessment import quiz
@@ -24,7 +24,7 @@ COMANDOS = [
 
 
 def crear_dispatcher() -> Dispatcher:
-    dp = Dispatcher(storage=MemoryStorage())
+    dp = Dispatcher(storage=RedisStorage.from_url(settings.REDIS_URL))
     dp.update.outer_middleware(ConsentimientoMiddleware())
     dp.include_router(start.router)
     dp.include_router(menu.router)
