@@ -24,7 +24,8 @@ class Settings(BaseSettings):
 
     # --- Investigación / ética ---
     ANON_SALT: str
-
+    COHORTE_ACTUAL: str | None = None
+    
     # --- Seguridad / JWT ---
     JWT_SECRET: str
     JWT_EXPIRE_HOURS: int = 8

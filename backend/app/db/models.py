@@ -161,6 +161,12 @@ class Student(Base):
         nullable=True,
     )
 
+    cohorte: Mapped[str | None] = mapped_column(
+        String(32),
+        nullable=True,
+        index=True,
+    )
+
     activo: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,

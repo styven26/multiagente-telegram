@@ -1,7 +1,7 @@
 """/start: alta del estudiante y consentimiento informado. [Ciclo 1]"""
 
 from datetime import datetime, timezone
-
+from app.config import settings
 from aiogram import F, Router
 from aiogram.filters import CommandStart
 from aiogram.types import (
@@ -54,6 +54,7 @@ async def cmd_start(message: Message):
                 nombre_telegram=(message.from_user.full_name or "")[:128],
                 consentimiento=False,
                 activo=True,
+                cohorte=settings.COHORTE_ACTUAL,
             )
             s.add(student)
             await s.flush()
