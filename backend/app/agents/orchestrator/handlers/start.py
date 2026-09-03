@@ -15,7 +15,7 @@ from app.db.models import Event, Student
 
 router = Router(name="start")
 
-VERSION_CONSENTIMIENTO = "v1.0"
+VERSION_CONSENTIMIENTO = "v1.1"
 
 TEXTO_CONSENTIMIENTO = (
     "👋 <b>Bienvenido/a</b>\n\n"
@@ -27,7 +27,9 @@ TEXTO_CONSENTIMIENTO = (
     "• Tus datos se analizan de forma <b>anónima</b>: se te asigna un código y "
     "tu identidad no aparece en los resultados.\n"
     "• La participación es <b>voluntaria</b> y puedes retirarte cuando quieras "
-    "con el comando /salir.\n\n"
+    "con el comando /salir.\n"
+    "• <b>No participar no afecta de ninguna manera tu calificación</b> en la "
+    "asignatura.\n\n"
     "¿Aceptas participar?"
 )
 
