@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 COMANDOS = [
     BotCommand(command="start", description="Iniciar / registrarse"),
     BotCommand(command="menu", description="Menú principal"),
+    BotCommand(command="perfil", description="Ver mi avance"),
     BotCommand(command="salir", description="Retirarme del estudio"),
 ]
 
