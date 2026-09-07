@@ -9,7 +9,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import BotCommand
 
 from app.agents.assessment import quiz
-from app.agents.orchestrator.handlers import menu, perfil, salir, start
+from app.agents.orchestrator.handlers import menu, perfil, repasos, salir, start
 from app.agents.orchestrator.middlewares import ConsentimientoMiddleware
 from app.config import settings
 from app.agents.spaced_repetition.scheduler import crear_scheduler
@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 COMANDOS = [
     BotCommand(command="start", description="Iniciar / registrarse"),
     BotCommand(command="menu", description="Menú principal"),
+    BotCommand(command="repasos", description="Mis repasos pendientes"),
     BotCommand(command="perfil", description="Ver mi avance"),
     BotCommand(command="salir", description="Retirarme del estudio"),
 ]
@@ -29,6 +30,7 @@ def crear_dispatcher() -> Dispatcher:
     dp.update.outer_middleware(ConsentimientoMiddleware())
     dp.include_router(start.router)
     dp.include_router(perfil.router)
+    dp.include_router(repasos.router)
     dp.include_router(menu.router)
     dp.include_router(quiz.router)
     dp.include_router(salir.router)
