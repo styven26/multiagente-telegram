@@ -8,7 +8,7 @@ from aiogram.types import (
     CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message,
 )
 from sqlalchemy import select
-
+from app.agents.base import teclado_principal
 from app.core.anonymization import generar_codigo_anonimo
 from app.db.base import SessionLocal
 from app.db.models import Event, Student
@@ -75,9 +75,13 @@ async def cmd_start(message: Message):
     if ya_acepto:
         saludo = ("👋 Bienvenido/a de vuelta.\n\n" if reactivado
                   else "Ya estás registrado/a. ")
+        async with SessionLocal() as s:
+            est = await s.scalar(select(Student).where(Student.telegram_id == tg_id))
+            teclado = await teclado_principal(s, est.id)
         await message.answer(
             f"{saludo}Tu código es <code>{codigo}</code>.\n"
-            "Usa /menu para continuar."
+            "Usa el menú de abajo para continuar.",
+            reply_markup=teclado,
         )
     else:
         await message.answer(TEXTO_CONSENTIMIENTO, reply_markup=teclado_consentimiento)
@@ -120,4 +124,14 @@ async def cb_consentimiento(callback: CallbackQuery):
         )
 
     await callback.message.edit_text(texto)
+
+    # El teclado fijo va en un mensaje aparte: edit_text no admite
+    # ReplyKeyboardMarkup, solo teclados inline.
+    if acepta:
+        async with SessionLocal() as s:
+            est = await s.scalar(select(Student).where(Student.telegram_id == tg_id))
+            teclado = await teclado_principal(s, est.id)
+        await callback.message.answer("Usa el menú de abajo para empezar.",
+                                      reply_markup=teclado)
+
     await callback.answer()

@@ -53,3 +53,8 @@ async def cb_salir(callback: CallbackQuery):
         "Si quieres volver, escribe /start."
     )
     await callback.answer()
+
+
+@router.message(F.text.startswith("🚪 Salir"))
+async def btn_salir(message: Message):
+    await cmd_salir(message)

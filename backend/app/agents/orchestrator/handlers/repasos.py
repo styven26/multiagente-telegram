@@ -9,7 +9,7 @@ rápida a que silencie el bot.
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import (
     InlineKeyboardButton, InlineKeyboardMarkup, Message,
@@ -100,3 +100,8 @@ async def cmd_repasos(message: Message):
     await message.answer(
         texto, reply_markup=InlineKeyboardMarkup(inline_keyboard=botones)
     )
+
+
+@router.message(F.text.startswith("🔁 Repasos"))
+async def btn_repasos(message: Message):
+    await cmd_repasos(message)

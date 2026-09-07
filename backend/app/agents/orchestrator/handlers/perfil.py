@@ -16,7 +16,7 @@ import matplotlib
 matplotlib.use("Agg")            # sin ventana: el servidor no tiene pantalla
 import matplotlib.pyplot as plt  # noqa: E402
 
-from aiogram import Router
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import FSInputFile, Message
 from sqlalchemy import Integer, func, select
@@ -144,3 +144,8 @@ async def cmd_perfil(message: Message):
     finally:
         if ruta is not None:
             ruta.unlink(missing_ok=True)
+
+
+@router.message(F.text.startswith("👤 Perfil"))
+async def btn_perfil(message: Message):
+    await cmd_perfil(message)

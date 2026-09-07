@@ -3,8 +3,7 @@
 import logging
 import time
 from contextlib import asynccontextmanager
-
-from aiogram.types import InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup
 from sqlalchemy import select
 
 from app.db.models import AgentInteraction, Student
@@ -50,3 +49,22 @@ async def traza(s, agente: str, accion: str, *, student_id: int | None = None,
             exitosa=exitosa, error=error,
             duracion_ms=round((time.perf_counter() - inicio) * 1000, 2),
         ))
+
+
+async def teclado_principal(s, student_id: int) -> ReplyKeyboardMarkup:
+    """Menú fijo inferior. El número de repasos se calcula al enviarlo, así que
+    hay que reenviar el teclado cuando esa cifra cambia — al cerrar un quiz."""
+    from app.agents.orchestrator.handlers.repasos import contar_pendientes
+
+    n = await contar_pendientes(s, student_id)
+
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📚 Estudiar"),
+             KeyboardButton(text=f"🔁 Repasos ({n})")],
+            [KeyboardButton(text="👤 Perfil"),
+             KeyboardButton(text="🚪 Salir")],
+        ],
+        resize_keyboard=True,
+        is_persistent=True,
+    )

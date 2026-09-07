@@ -212,3 +212,10 @@ async def cb_capsula(call: CallbackQuery, state: FSMContext):
     else:
         await call.message.edit_text(texto, reply_markup=teclado)
     await call.answer()
+
+
+@router.message(F.text.startswith("📚 Estudiar"))
+async def btn_estudiar(message: Message, state: FSMContext):
+    """El menú fijo llega como texto, no como callback: Telegram envía la
+    etiqueta del botón como si el estudiante la hubiera escrito."""
+    await cmd_menu(message, state)
