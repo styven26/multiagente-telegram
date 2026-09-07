@@ -11,7 +11,6 @@ Evaluación (responses) y del Agente de Modelado del Estudiante (mastery).
 import logging
 import tempfile
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import matplotlib
 matplotlib.use("Agg")            # sin ventana: el servidor no tiene pantalla
@@ -22,10 +21,9 @@ from aiogram.filters import Command
 from aiogram.types import FSInputFile, Message
 from sqlalchemy import Integer, func, select
 
-from app.config import settings
 from app.db.base import SessionLocal
 from app.db.models import (
-    Capsule, Mastery, Response, SpacedRepetition, Student, StudySession, Topic,
+    Capsule, Mastery, Response, Student, StudySession, Topic,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,26 +48,25 @@ def _grafico(filas) -> Path:
     nombres = [f[0] for f in filas][::-1]
     niveles = [f[1] for f in filas][::-1]
 
-    alto = max(2.0, 0.6 * len(nombres) + 1.0)
-    fig, ax = plt.subplots(figsize=(7, alto), dpi=130)
+    alto = max(1.4, 0.42 * len(nombres) + 0.6)
+    fig, ax = plt.subplots(figsize=(5, alto), dpi=110)
 
     barras = ax.barh(nombres, niveles,
-                     color=[_color(n) for n in niveles], height=0.55)
+                     color=[_color(n) for n in niveles], height=0.5)
 
     for barra, nivel in zip(barras, niveles):
-        ax.text(min(nivel + 0.02, 0.97), barra.get_y() + barra.get_height() / 2,
-                f"{nivel:.0%}", va="center", fontsize=10, color="#1a1830")
+        ax.text(min(nivel + 0.02, 0.96), barra.get_y() + barra.get_height() / 2,
+                f"{nivel:.0%}", va="center", fontsize=8, color="#1a1830")
 
     ax.set_xlim(0, 1.05)
-    ax.set_xticks([0, 0.25, 0.5, 0.75, 1.0])
-    ax.set_xticklabels(["0%", "25%", "50%", "75%", "100%"], fontsize=9)
-    ax.tick_params(axis="y", labelsize=10, length=0)
-    ax.set_title("Tu dominio por tema", fontsize=12, pad=12, loc="left")
+    ax.set_xticks([0, 0.5, 1.0])
+    ax.set_xticklabels(["0%", "50%", "100%"], fontsize=7.5)
+    ax.tick_params(axis="y", labelsize=8, length=0)
 
     for lado in ("top", "right", "left"):
         ax.spines[lado].set_visible(False)
     ax.spines["bottom"].set_color("#d5d3cc")
-    ax.grid(axis="x", color="#e8e6df", linewidth=0.8)
+    ax.grid(axis="x", color="#e8e6df", linewidth=0.7)
     ax.set_axisbelow(True)
 
     fig.tight_layout()
@@ -115,15 +112,9 @@ async def cmd_perfil(message: Message):
             .order_by(Topic.orden)
         )).all()
 
-        proximo = await s.scalar(
-            select(func.min(SpacedRepetition.proxima_revision_en))
-            .where(SpacedRepetition.student_id == est.id,
-                   SpacedRepetition.activo.is_(True))
-        )
-
     acierto = (n_ok / n_resp) if n_resp else 0.0
 
-    lineas = [
+    texto = "\n".join([
         "👤 <b>Tu perfil</b>",
         f"Código: <code>{est.codigo_anonimo}</code>",
         "",
@@ -132,13 +123,7 @@ async def cmd_perfil(message: Message):
         f"Respuestas correctas: <b>{int(n_ok)}</b>",
         f"Respuestas incorrectas: <b>{n_resp - int(n_ok)}</b>",
         f"Tasa de acierto: <b>{acierto:.0%}</b>",
-    ]
-
-    if proximo is not None:
-        local = proximo.astimezone(ZoneInfo(settings.TIMEZONE))
-        lineas += ["", f"🔁 Próximo repaso: <b>{local:%d/%m a las %H:%M}</b>"]
-
-    texto = "\n".join(lineas)
+    ])
 
     if not filas:
         await message.answer(
@@ -146,14 +131,18 @@ async def cmd_perfil(message: Message):
         )
         return
 
+    # Dos mensajes: el pie de foto de Telegram va debajo de la imagen, y aquí
+    # el texto debe leerse primero.
+    await message.answer(texto)
+
     ruta = None
     try:
         ruta = _grafico(filas)
-        await message.answer_photo(FSInputFile(ruta), caption=texto)
+        await message.answer_photo(FSInputFile(ruta),
+                                   caption="📚 <b>Dominio por tema</b>")
     except Exception:                                # noqa: BLE001
-        # Si el gráfico falla, el estudiante igual recibe sus datos.
+        # Si el gráfico falla, el estudiante ya recibió sus datos.
         logger.exception("No se pudo generar el gráfico del perfil")
-        await message.answer(texto)
     finally:
         if ruta is not None:
             ruta.unlink(missing_ok=True)
