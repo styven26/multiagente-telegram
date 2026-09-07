@@ -16,7 +16,7 @@ from aiogram.types import (
 )
 from sqlalchemy import select
 
-from app.agents.base import VOLVER, estudiante_por_telegram as _estudiante
+from app.agents.base import estudiante_por_telegram as _estudiante
 from app.config import settings
 from app.db.base import SessionLocal
 from app.db.models import Capsule, SpacedRepetition
@@ -79,9 +79,7 @@ async def cmd_repasos(message: Message):
         if proximo is not None:
             local = proximo.astimezone(ZoneInfo(settings.TIMEZONE))
             texto += f"\n\nEl siguiente será el <b>{local:%d/%m}</b>."
-        await message.answer(
-            texto, reply_markup=InlineKeyboardMarkup(inline_keyboard=[[VOLVER]])
-        )
+        await message.answer(texto)
         return
 
     plural = "repaso pendiente" if len(filas) == 1 else "repasos pendientes"
@@ -95,7 +93,15 @@ async def cmd_repasos(message: Message):
                               callback_data=f"m:c:{capsule_id}")]
         for capsule_id, titulo, duracion, _ in filas
     ]
-    botones.append([VOLVER])
+    botones = [
+        [InlineKeyboardButton(text=f"{titulo}  ·  {duracion} min",
+                              callback_data=f"m:c:{capsule_id}")]
+        for capsule_id, titulo, duracion, _ in filas
+    ]
+
+    await message.answer(
+        texto, reply_markup=InlineKeyboardMarkup(inline_keyboard=botones)
+    )
 
     await message.answer(
         texto, reply_markup=InlineKeyboardMarkup(inline_keyboard=botones)

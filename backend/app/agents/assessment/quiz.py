@@ -14,13 +14,10 @@ from pathlib import Path
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import (
-    CallbackQuery, FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup,
-    InputMediaPhoto,
-)
+from aiogram.types import ( CallbackQuery, FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, )
 from sqlalchemy import Integer, func, select
 
-from app.agents.base import VOLVER, estudiante_por_telegram as _estudiante, traza
+from app.agents.base import estudiante_por_telegram as _estudiante, traza
 from app.agents.spaced_repetition import sm2 as sr_service
 from app.agents.student_model.inferencia import motor as motor_kt
 from app.db.base import SessionLocal
@@ -292,6 +289,7 @@ async def _cerrar_quiz(call: CallbackQuery, state: FSMContext, previo: str):
         await s.commit()
         intervalo = sr.intervalo_dias
         conto_repaso = conto
+        est_id = est.id
 
     await state.clear()
 
@@ -306,9 +304,14 @@ async def _cerrar_quiz(call: CallbackQuery, state: FSMContext, previo: str):
     resumen = (f"{previo}\n\n———\n\n{marca} <b>Quiz completado</b>\n"
                f"Aciertos: <b>{aciertos} de {total}</b> ({nivel:.0%})\n\n"
                f"{aviso}")
-    volver = InlineKeyboardMarkup(inline_keyboard=[[VOLVER]])
 
     if call.message.photo:
-        await call.message.edit_caption(caption=resumen, reply_markup=volver)
+        await call.message.edit_caption(caption=resumen)
     else:
-        await call.message.edit_text(resumen, reply_markup=volver)
+        await call.message.edit_text(resumen)
+
+    # El teclado vuelve con el contador de repasos actualizado: si el estudiante
+    # acaba de completar uno, el número baja solo.
+    async with SessionLocal() as s:
+        teclado = await teclado_principal(s, est_id)
+    await call.message.answer("Menú disponible abajo.", reply_markup=teclado)

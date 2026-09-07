@@ -12,12 +12,10 @@ from html import escape
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import (
-    CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message,
-)
+from aiogram.types import ( CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyKeyboardRemove, )
 from sqlalchemy import func, select
 
-from app.agents.base import VOLVER, estudiante_por_telegram as _estudiante, traza
+from app.agents.base import estudiante_por_telegram as _estudiante, traza
 from app.db.base import SessionLocal
 from app.db.models import Capsule, Event, Question, StudySession, Topic
 
@@ -102,7 +100,6 @@ async def cb_unidad(call: CallbackQuery):
                               callback_data=f"m:t:{t.id}")]
         for t in temas
     ]
-    botones.append([VOLVER])
 
     await call.message.edit_text(
         f"<b>Unidad {numero} · {UNIDADES[numero]}</b>\n\nElige un tema:",
@@ -146,6 +143,12 @@ async def cb_tema(call: CallbackQuery):
 async def cb_capsula(call: CallbackQuery, state: FSMContext):
     capsule_id = call.data.split(":", 2)[2]
 
+    # Se oculta el menú fijo mientras dura la cápsula: si el estudiante sale a
+    # otra pantalla a mitad del quiz, ese tiempo se contaría como tiempo de
+    # respuesta y distorsionaría tiempo_seg y duracion_seg.
+    aviso = await call.message.answer("⏳", reply_markup=ReplyKeyboardRemove())
+    await aviso.delete()
+
     async with SessionLocal() as s:
         est = await _estudiante(s, call.from_user.id)
         capsula = await s.get(Capsule, capsule_id)
@@ -180,7 +183,6 @@ async def cb_capsula(call: CallbackQuery, state: FSMContext):
                         tipo="capsula_abierta",
                         payload={"capsule_id": capsule_id}))
 
-            t["session_id"] = sesion.id
             t["salida"] = {"session_id": sesion.id, "reutilizada": reutilizada}
 
         await s.commit()
@@ -201,9 +203,9 @@ async def cb_capsula(call: CallbackQuery, state: FSMContext):
         teclado = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text=f"✏️ Hacer el quiz ({n_preguntas})",
                                  callback_data="m:quiz")
-        ], [VOLVER]])
+        ]])
     else:
-        teclado = InlineKeyboardMarkup(inline_keyboard=[[VOLVER]])
+        teclado = InlineKeyboardMarkup(inline_keyboard=[])
         texto += "\n\n<i>Esta cápsula aún no tiene preguntas.</i>"
 
     if call.message.photo:
