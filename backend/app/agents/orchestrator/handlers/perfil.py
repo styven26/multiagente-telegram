@@ -131,18 +131,15 @@ async def cmd_perfil(message: Message):
         )
         return
 
-    # Dos mensajes: el pie de foto de Telegram va debajo de la imagen, y aquí
-    # el texto debe leerse primero.
-    await message.answer(texto)
-
+    # Un solo mensaje: la imagen arriba y el rendimiento como pie de foto.
     ruta = None
     try:
         ruta = _grafico(filas)
-        await message.answer_photo(FSInputFile(ruta),
-                                   caption="📚 <b>Dominio por tema</b>")
+        await message.answer_photo(FSInputFile(ruta), caption=texto)
     except Exception:                                # noqa: BLE001
-        # Si el gráfico falla, el estudiante ya recibió sus datos.
+        # Si el gráfico falla, el estudiante igual recibe sus datos.
         logger.exception("No se pudo generar el gráfico del perfil")
+        await message.answer(texto)
     finally:
         if ruta is not None:
             ruta.unlink(missing_ok=True)
