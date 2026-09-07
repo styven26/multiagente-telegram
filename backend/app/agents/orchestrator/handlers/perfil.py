@@ -12,6 +12,8 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 from sqlalchemy import Integer, func, select
+from zoneinfo import ZoneInfo
+from app.config import settings
 
 from app.db.base import SessionLocal
 from app.db.models import (
@@ -89,6 +91,7 @@ async def cmd_perfil(message: Message):
             lineas.append(f"{_barra(nivel)} {nivel:.0%}  {nombre}")
 
     if proximo is not None:
-        lineas += ["", f"🔁 Próximo repaso: <b>{proximo:%d/%m a las %H:%M}</b>"]
+        local = proximo.astimezone(ZoneInfo(settings.TIMEZONE))
+        lineas += ["", f"🔁 Próximo repaso: <b>{local:%d/%m a las %H:%M}</b>"]
 
     await message.answer("\n".join(lineas))
