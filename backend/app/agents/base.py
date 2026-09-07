@@ -5,6 +5,7 @@ import time
 from contextlib import asynccontextmanager
 from aiogram.types import InlineKeyboardButton, KeyboardButton, ReplyKeyboardMarkup
 from sqlalchemy import select
+from aiogram.fsm.context import FSMContext
 
 from app.db.models import AgentInteraction, Student
 
@@ -68,3 +69,21 @@ async def teclado_principal(s, student_id: int) -> ReplyKeyboardMarkup:
         resize_keyboard=True,
         is_persistent=True,
     )
+
+
+async def limpiar_navegacion(message, state: FSMContext) -> None:
+    """Borra el mensaje de navegación que quedó abierto.
+
+    Los teclados inline de Telegram no caducan: si el estudiante deja el menú
+    de temas arriba y se va al perfil, esos botones siguen activos y puede
+    volver a una pantalla que ya no corresponde al estado actual.
+    """
+    datos = await state.get_data()
+    msg_id = datos.get("nav_msg_id")
+    if msg_id is None:
+        return
+    try:
+        await message.bot.delete_message(message.chat.id, msg_id)
+    except Exception:                                # noqa: BLE001
+        pass                                         # ya lo borró el usuario
+    await state.update_data(nav_msg_id=None)

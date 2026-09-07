@@ -15,8 +15,8 @@ from aiogram.types import (
     InlineKeyboardButton, InlineKeyboardMarkup, Message,
 )
 from sqlalchemy import select
-
-from app.agents.base import estudiante_por_telegram as _estudiante
+from aiogram.fsm.context import FSMContext
+from app.agents.base import estudiante_por_telegram as _estudiante, limpiar_navegacion
 from app.config import settings
 from app.db.base import SessionLocal
 from app.db.models import Capsule, SpacedRepetition
@@ -109,5 +109,6 @@ async def cmd_repasos(message: Message):
 
 
 @router.message(F.text.startswith("🔁 Repasos"))
-async def btn_repasos(message: Message):
+async def btn_repasos(message: Message, state: FSMContext):
+    await limpiar_navegacion(message, state)
     await cmd_repasos(message)

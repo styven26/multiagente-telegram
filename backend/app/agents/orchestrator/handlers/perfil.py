@@ -20,6 +20,8 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import FSInputFile, Message
 from sqlalchemy import Integer, func, select
+from aiogram.fsm.context import FSMContext
+from app.agents.base import limpiar_navegacion
 
 from app.db.base import SessionLocal
 from app.db.models import (
@@ -147,5 +149,6 @@ async def cmd_perfil(message: Message):
 
 
 @router.message(F.text.startswith("👤 Perfil"))
-async def btn_perfil(message: Message):
+async def btn_perfil(message: Message, state: FSMContext):
+    await limpiar_navegacion(message, state)
     await cmd_perfil(message)
