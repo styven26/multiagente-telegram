@@ -62,6 +62,7 @@ def _grafico(filas) -> Path:
     ax.set_xticks([0, 0.5, 1.0])
     ax.set_xticklabels(["0%", "50%", "100%"], fontsize=7.5)
     ax.tick_params(axis="y", labelsize=8, length=0)
+    ax.set_title("Dominio por tema", fontsize=10, pad=8, loc="left", color="#1a1830")
 
     for lado in ("top", "right", "left"):
         ax.spines[lado].set_visible(False)
