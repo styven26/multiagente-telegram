@@ -93,15 +93,12 @@ async def cmd_repasos(message: Message):
                               callback_data=f"m:c:{capsule_id}")]
         for capsule_id, titulo, duracion, _ in filas
     ]
+
     botones = [
         [InlineKeyboardButton(text=f"{titulo}  ·  {duracion} min",
                               callback_data=f"m:c:{capsule_id}")]
         for capsule_id, titulo, duracion, _ in filas
     ]
-
-    await message.answer(
-        texto, reply_markup=InlineKeyboardMarkup(inline_keyboard=botones)
-    )
 
     await message.answer(
         texto, reply_markup=InlineKeyboardMarkup(inline_keyboard=botones)
