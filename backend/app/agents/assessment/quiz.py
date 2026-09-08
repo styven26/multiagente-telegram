@@ -22,7 +22,7 @@ from aiogram.types import (
 )
 from sqlalchemy import Integer, func, select
 
-from app.agents.base import estudiante_por_telegram as _estudiante, traza
+from app.agents.base import estudiante_por_telegram as _estudiante, teclado_principal, traza
 from app.agents.spaced_repetition import sm2 as sr_service
 from app.agents.student_model.inferencia import motor as motor_kt
 from app.db.base import SessionLocal
