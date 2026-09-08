@@ -11,7 +11,7 @@ from aiogram.types import (
 )
 from sqlalchemy import select
 from aiogram.fsm.context import FSMContext
-from app.agents.base import limpiar_navegacion
+from app.agents.base import limpiar_seccion
 from app.db.base import SessionLocal
 from app.db.models import Event, Student
 
@@ -58,5 +58,5 @@ async def cb_salir(callback: CallbackQuery):
 
 @router.message(F.text.startswith("🚪 Salir"))
 async def btn_salir(message: Message, state: FSMContext):
-    await limpiar_navegacion(message, state)
+    await limpiar_seccion(message, state)
     await cmd_salir(message)
