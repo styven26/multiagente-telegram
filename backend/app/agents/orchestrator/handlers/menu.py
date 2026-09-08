@@ -15,7 +15,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import ( CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyKeyboardRemove, )
 from sqlalchemy import func, select
 
-from app.agents.base import estudiante_por_telegram as _estudiante, limpiar_navegacion, traza
+from app.agents.base import estudiante_por_telegram as _estudiante, limpiar_seccion, recordar_seccion, traza
 from app.db.base import SessionLocal
 from app.db.models import Capsule, Event, Question, StudySession, Topic
 
@@ -65,7 +65,7 @@ async def cmd_menu(message: Message, state: FSMContext):
             return
         texto, teclado = await _menu_unidades(s)
         enviado = await message.answer(texto, reply_markup=teclado)
-    await state.update_data(nav_msg_id=enviado.message_id)
+    await recordar_seccion(enviado, state)
 
 
 @router.callback_query(F.data == "m:inicio")
@@ -197,7 +197,7 @@ async def cb_capsula(call: CallbackQuery, state: FSMContext):
                  f"<i>🎯 {escape(capsula.objetivo)}</i>")
 
     await state.update_data(session_id=session_id, capsule_id=capsule_id,
-                            topic_id=capsula.topic_id)
+                            topic_id=capsula.topic_id, nav_msg_id=None)
 
     # El callback "m:quiz" lo atiende el Agente de Evaluación.
     if n_preguntas:
@@ -221,5 +221,5 @@ async def cb_capsula(call: CallbackQuery, state: FSMContext):
 async def btn_estudiar(message: Message, state: FSMContext):
     """El menú fijo llega como texto, no como callback: Telegram envía la
     etiqueta del botón como si el estudiante la hubiera escrito."""
-    await limpiar_navegacion(message, state)
+    await limpiar_seccion(message, state)
     await cmd_menu(message, state)

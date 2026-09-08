@@ -16,7 +16,7 @@ from aiogram.types import (
 )
 from sqlalchemy import select
 from aiogram.fsm.context import FSMContext
-from app.agents.base import estudiante_por_telegram as _estudiante, limpiar_navegacion
+from app.agents.base import estudiante_por_telegram as _estudiante, limpiar_seccion, recordar_seccion
 from app.config import settings
 from app.db.base import SessionLocal
 from app.db.models import Capsule, SpacedRepetition
@@ -64,7 +64,7 @@ async def contar_pendientes(s, student_id: int) -> int:
 
 
 @router.message(Command("repasos"))
-async def cmd_repasos(message: Message):
+async def cmd_repasos(message: Message, state: FSMContext):
     async with SessionLocal() as s:
         est = await _estudiante(s, message.from_user.id)
         if est is None:
@@ -79,7 +79,8 @@ async def cmd_repasos(message: Message):
         if proximo is not None:
             local = proximo.astimezone(ZoneInfo(settings.TIMEZONE))
             texto += f"\n\nEl siguiente será el <b>{local:%d/%m}</b>."
-        await message.answer(texto)
+        enviado = await message.answer(texto)
+        await recordar_seccion(enviado, state)
         return
 
     plural = "repaso pendiente" if len(filas) == 1 else "repasos pendientes"
@@ -94,18 +95,13 @@ async def cmd_repasos(message: Message):
         for capsule_id, titulo, duracion, _ in filas
     ]
 
-    botones = [
-        [InlineKeyboardButton(text=f"{titulo}  ·  {duracion} min",
-                              callback_data=f"m:c:{capsule_id}")]
-        for capsule_id, titulo, duracion, _ in filas
-    ]
-
-    await message.answer(
+    enviado = await message.answer(
         texto, reply_markup=InlineKeyboardMarkup(inline_keyboard=botones)
     )
+    await recordar_seccion(enviado, state)
 
 
 @router.message(F.text.startswith("🔁 Repasos"))
 async def btn_repasos(message: Message, state: FSMContext):
-    await limpiar_navegacion(message, state)
-    await cmd_repasos(message)
+    await limpiar_seccion(message, state)
+    await cmd_repasos(message, state)

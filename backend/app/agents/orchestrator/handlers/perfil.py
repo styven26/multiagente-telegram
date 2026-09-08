@@ -20,8 +20,9 @@ from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import FSInputFile, Message
 from sqlalchemy import Integer, func, select
+
 from aiogram.fsm.context import FSMContext
-from app.agents.base import limpiar_navegacion
+from app.agents.base import limpiar_seccion, recordar_seccion
 
 from app.db.base import SessionLocal
 from app.db.models import (
@@ -81,7 +82,7 @@ def _grafico(filas) -> Path:
 
 
 @router.message(Command("perfil"))
-async def cmd_perfil(message: Message):
+async def cmd_perfil(message: Message, state: FSMContext):
     async with SessionLocal() as s:
         est = await s.scalar(
             select(Student).where(Student.telegram_id == message.from_user.id)
@@ -129,20 +130,21 @@ async def cmd_perfil(message: Message):
     ])
 
     if not filas:
-        await message.answer(
+        enviado = await message.answer(
             texto + "\n\n<i>Completa una cápsula para ver tu dominio por tema.</i>"
         )
+        await recordar_seccion(enviado, state)
         return
 
-    # Un solo mensaje: la imagen arriba y el rendimiento como pie de foto.
     ruta = None
     try:
         ruta = _grafico(filas)
-        await message.answer_photo(FSInputFile(ruta), caption=texto)
+        enviado = await message.answer_photo(FSInputFile(ruta), caption=texto)
+        await recordar_seccion(enviado, state)
     except Exception:                                # noqa: BLE001
-        # Si el gráfico falla, el estudiante igual recibe sus datos.
         logger.exception("No se pudo generar el gráfico del perfil")
-        await message.answer(texto)
+        enviado = await message.answer(texto)
+        await recordar_seccion(enviado, state)
     finally:
         if ruta is not None:
             ruta.unlink(missing_ok=True)
@@ -150,5 +152,5 @@ async def cmd_perfil(message: Message):
 
 @router.message(F.text.startswith("👤 Perfil"))
 async def btn_perfil(message: Message, state: FSMContext):
-    await limpiar_navegacion(message, state)
-    await cmd_perfil(message)
+    await limpiar_seccion(message, state)
+    await cmd_perfil(message, state)

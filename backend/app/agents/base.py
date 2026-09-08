@@ -71,19 +71,24 @@ async def teclado_principal(s, student_id: int) -> ReplyKeyboardMarkup:
     )
 
 
-async def limpiar_navegacion(message, state: FSMContext) -> None:
-    """Borra el mensaje de navegación que quedó abierto.
+async def limpiar_seccion(message, state: FSMContext) -> None:
+    """Borra el mensaje de la sección anterior.
 
-    Los teclados inline de Telegram no caducan: si el estudiante deja el menú
-    de temas arriba y se va al perfil, esos botones siguen activos y puede
-    volver a una pantalla que ya no corresponde al estado actual.
+    Los teclados inline de Telegram no caducan: sin esto, el chat acumula
+    pantallas antiguas cuyos botones siguen activos y el estudiante puede
+    volver a una que ya no corresponde. Solo se aplica entre secciones del
+    menú fijo; dentro del flujo de cápsulas el contenido debe permanecer.
     """
     datos = await state.get_data()
     msg_id = datos.get("nav_msg_id")
-    if msg_id is None:
-        return
-    try:
-        await message.bot.delete_message(message.chat.id, msg_id)
-    except Exception:                                # noqa: BLE001
-        pass                                         # ya lo borró el usuario
+    if msg_id is not None:
+        try:
+            await message.bot.delete_message(message.chat.id, msg_id)
+        except Exception:                            # noqa: BLE001
+            pass                                     # ya lo borró el usuario
     await state.update_data(nav_msg_id=None)
+
+
+async def recordar_seccion(enviado, state: FSMContext) -> None:
+    """Guarda el mensaje que quedará como sección activa."""
+    await state.update_data(nav_msg_id=enviado.message_id)
