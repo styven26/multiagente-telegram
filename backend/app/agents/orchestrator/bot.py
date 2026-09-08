@@ -24,11 +24,11 @@ COMANDOS = [
 def crear_dispatcher() -> Dispatcher:
     dp = Dispatcher(storage=RedisStorage.from_url(settings.REDIS_URL))
     dp.update.outer_middleware(ConsentimientoMiddleware())
+    dp.include_router(quiz.router)
     dp.include_router(start.router)
     dp.include_router(perfil.router)
     dp.include_router(repasos.router)
     dp.include_router(menu.router)
-    dp.include_router(quiz.router)
     dp.include_router(salir.router)
     return dp
     

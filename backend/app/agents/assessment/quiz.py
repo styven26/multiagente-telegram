@@ -7,6 +7,7 @@ y se lo devuelve al terminar. Cada respuesta produce tres efectos: la fila en
 la actualización del dominio y la programación del repaso.
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from html import escape
@@ -22,7 +23,7 @@ from app.agents.spaced_repetition import sm2 as sr_service
 from app.agents.student_model.inferencia import motor as motor_kt
 from app.db.base import SessionLocal
 from app.db.models import (
-    Event, Mastery, ModelPrediction, Question, Response, StudySession,
+    Event, Mastery, ModelPrediction, Question, Response, Student, StudySession,
 )
 
 logger = logging.getLogger(__name__)
@@ -310,8 +311,34 @@ async def _cerrar_quiz(call: CallbackQuery, state: FSMContext, previo: str):
     else:
         await call.message.edit_text(resumen)
 
-    # El teclado vuelve con el contador de repasos actualizado: si el estudiante
-    # acaba de completar uno, el número baja solo.
+    # El teclado vuelve con el contador de repasos actualizado, y el estudiante
+    # queda en la pantalla de inicio en lugar de un mensaje suelto.
     async with SessionLocal() as s:
+        est_obj = await s.get(Student, est_id)
         teclado = await teclado_principal(s, est_id)
-    await call.message.answer("Menú disponible abajo.", reply_markup=teclado)
+        codigo = est_obj.codigo_anonimo
+
+    enviado = await call.message.answer(
+        f"🏠 <b>Inicio</b>\n\nTu código es <code>{codigo}</code>.\n"
+        "Usa el menú de abajo para continuar.",
+        reply_markup=teclado,
+    )
+    await state.update_data(nav_msg_id=enviado.message_id)
+
+
+@router.message()
+async def bloquear_durante_quiz(message: Message, state: FSMContext):
+    """Ignora todo lo que el estudiante escriba mientras responde un quiz.
+
+    Telegram no permite ocultar el campo de texto, así que la única forma de
+    evitar que se salga a mitad de evaluación es no atender esos mensajes.
+    Sin esto, un /start o un botón del menú abriría otra pantalla y el tiempo
+    de respuesta seguiría corriendo.
+    """
+    datos = await state.get_data()
+    if not datos.get("ids"):
+        return                      # no hay quiz activo: lo atiende otro router
+    await message.delete()
+    aviso = await message.answer("Termina el quiz antes de salir.")
+    await asyncio.sleep(3)
+    await aviso.delete()

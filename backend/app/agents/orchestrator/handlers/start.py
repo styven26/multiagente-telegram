@@ -1,6 +1,7 @@
 """/start: alta del estudiante y consentimiento informado. [Ciclo 1]"""
 
 from datetime import datetime, timezone
+from aiogram.fsm.context import FSMContext
 from app.config import settings
 from aiogram import F, Router
 from aiogram.filters import CommandStart
@@ -8,7 +9,7 @@ from aiogram.types import (
     CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message,
 )
 from sqlalchemy import select
-from app.agents.base import teclado_principal
+from app.agents.base import limpiar_seccion, recordar_seccion, teclado_principal
 from app.core.anonymization import generar_codigo_anonimo
 from app.db.base import SessionLocal
 from app.db.models import Event, Student
@@ -40,7 +41,11 @@ teclado_consentimiento = InlineKeyboardMarkup(inline_keyboard=[[
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message):
+async def cmd_start(message: Message, state: FSMContext):
+    # Si había un quiz en curso, se descarta: volver al inicio con el estado
+    # vivo permitiría responder preguntas fuera de contexto y falsear tiempos.
+    await state.clear()
+
     tg_id = message.from_user.id
 
     async with SessionLocal() as s:
@@ -70,21 +75,23 @@ async def cmd_start(message: Message):
                     payload={"comando": "/start", "nuevo": es_nuevo}))
         ya_acepto = student.consentimiento
         codigo = student.codigo_anonimo
+        student_id = student.id
         await s.commit()
 
     if ya_acepto:
         saludo = ("👋 Bienvenido/a de vuelta.\n\n" if reactivado
                   else "Ya estás registrado/a. ")
         async with SessionLocal() as s:
-            est = await s.scalar(select(Student).where(Student.telegram_id == tg_id))
-            teclado = await teclado_principal(s, est.id)
-        await message.answer(
+            teclado = await teclado_principal(s, student_id)
+        enviado = await message.answer(
             f"{saludo}Tu código es <code>{codigo}</code>.\n"
             "Usa el menú de abajo para continuar.",
             reply_markup=teclado,
         )
+        await recordar_seccion(enviado, state)
     else:
-        await message.answer(TEXTO_CONSENTIMIENTO, reply_markup=teclado_consentimiento)
+        await message.answer(TEXTO_CONSENTIMIENTO,
+                             reply_markup=teclado_consentimiento)
 
 
 @router.callback_query(F.data.startswith("consent:"))
@@ -135,3 +142,9 @@ async def cb_consentimiento(callback: CallbackQuery):
                                       reply_markup=teclado)
 
     await callback.answer()
+
+
+@router.message(F.text.startswith("🏠 Inicio"))
+async def btn_inicio(message: Message, state: FSMContext):
+    await limpiar_seccion(message, state)
+    await cmd_start(message, state)

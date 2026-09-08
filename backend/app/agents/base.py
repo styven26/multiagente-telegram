@@ -61,6 +61,7 @@ async def teclado_principal(s, student_id: int) -> ReplyKeyboardMarkup:
 
     return ReplyKeyboardMarkup(
         keyboard=[
+            [KeyboardButton(text="🏠 Inicio")],
             [KeyboardButton(text="📚 Estudiar"),
              KeyboardButton(text=f"🔁 Repasos ({n})")],
             [KeyboardButton(text="👤 Perfil"),
