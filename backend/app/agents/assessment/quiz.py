@@ -327,7 +327,6 @@ async def _cerrar_quiz(call: CallbackQuery, state: FSMContext, previo: str):
         "Usa el menú de abajo para continuar.",
         reply_markup=teclado,
     )
-    await state.update_data(nav_msg_id=enviado.message_id)
 
 
 @router.message(F.text)

@@ -88,7 +88,6 @@ async def cmd_start(message: Message, state: FSMContext):
             "Usa el menú de abajo para continuar.",
             reply_markup=teclado,
         )
-        await recordar_seccion(enviado, state)
     else:
         await message.answer(TEXTO_CONSENTIMIENTO,
                              reply_markup=teclado_consentimiento)
