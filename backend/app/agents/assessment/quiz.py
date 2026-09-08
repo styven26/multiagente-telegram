@@ -15,7 +15,10 @@ from pathlib import Path
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import ( CallbackQuery, FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, )
+from aiogram.types import (
+    CallbackQuery, FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup,
+    InputMediaPhoto, Message,
+)
 from sqlalchemy import Integer, func, select
 
 from app.agents.base import estudiante_por_telegram as _estudiante, traza
