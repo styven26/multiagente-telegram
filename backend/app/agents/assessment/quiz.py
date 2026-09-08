@@ -14,6 +14,7 @@ from html import escape
 from pathlib import Path
 
 from aiogram import F, Router
+from aiogram.dispatcher.event.bases import SkipHandler
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     CallbackQuery, FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup,
@@ -329,18 +330,16 @@ async def _cerrar_quiz(call: CallbackQuery, state: FSMContext, previo: str):
     await state.update_data(nav_msg_id=enviado.message_id)
 
 
-@router.message()
+@router.message(F.text)
 async def bloquear_durante_quiz(message: Message, state: FSMContext):
     """Ignora todo lo que el estudiante escriba mientras responde un quiz.
 
     Telegram no permite ocultar el campo de texto, así que la única forma de
     evitar que se salga a mitad de evaluación es no atender esos mensajes.
-    Sin esto, un /start o un botón del menú abriría otra pantalla y el tiempo
-    de respuesta seguiría corriendo.
     """
     datos = await state.get_data()
     if not datos.get("ids"):
-        return                      # no hay quiz activo: lo atiende otro router
+        raise SkipHandler       # sin quiz activo: que lo atiendan los demás
     await message.delete()
     aviso = await message.answer("Termina el quiz antes de salir.")
     await asyncio.sleep(3)
