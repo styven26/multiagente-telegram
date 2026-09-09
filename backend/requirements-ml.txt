@@ -1,0 +1,10 @@
+# Dependencias de aprendizaje automatico (Ciclo 2 y 3).
+# Se instalan aparte de requirements.txt porque torch se toma del indice
+# de solo CPU: la rueda por defecto arrastra los paquetes de CUDA (~2 GB),
+# innecesarios en el VPS de 2 GB y en el portatil sin GPU.
+#
+#   pip install -r requirements-ml.txt
+#
+--index-url https://download.pytorch.org/whl/cpu
+
+torch==2.14.0
