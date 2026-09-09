@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.types import (
-    InlineKeyboardButton, InlineKeyboardMarkup, Message,
+    CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message,
 )
 from sqlalchemy import select
 from aiogram.fsm.context import FSMContext
