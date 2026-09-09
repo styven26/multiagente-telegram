@@ -315,18 +315,18 @@ async def _cerrar_quiz(call: CallbackQuery, state: FSMContext, previo: str):
     else:
         await call.message.edit_text(resumen)
 
-    # El teclado vuelve con el contador de repasos actualizado, y el estudiante
-    # queda en la pantalla de inicio en lugar de un mensaje suelto.
+    # El resumen se envía como mensaje nuevo con el teclado adjunto, en vez de
+    # editar el de la pregunta: así desaparece la imagen del enunciado y el
+    # teclado vuelve sin necesidad de un mensaje extra de inicio.
     async with SessionLocal() as s:
-        est_obj = await s.get(Student, est_id)
         teclado = await teclado_principal(s, est_id)
-        codigo = est_obj.codigo_anonimo
 
-    enviado = await call.message.answer(
-        f"🏠 <b>Inicio</b>\n\nTu código es <code>{codigo}</code>.\n"
-        "Usa el menú de abajo para continuar.",
-        reply_markup=teclado,
-    )
+    try:
+        await call.message.delete()
+    except Exception:                                # noqa: BLE001
+        logger.debug("No se pudo borrar la última pregunta", exc_info=True)
+
+    await call.message.answer(resumen, reply_markup=teclado)
 
 
 @router.message(F.text)
