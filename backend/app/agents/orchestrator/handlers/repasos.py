@@ -64,9 +64,12 @@ async def contar_pendientes(s, student_id: int) -> int:
 
 
 @router.message(Command("repasos"))
-async def cmd_repasos(message: Message, state: FSMContext):
+async def cmd_repasos(message: Message, state: FSMContext, tg_id: int | None = None):
+    # En un callback, message.from_user es el bot: el id real llega aparte.
+    tg_id = tg_id or message.from_user.id
+
     async with SessionLocal() as s:
-        est = await _estudiante(s, message.from_user.id)
+        est = await _estudiante(s, tg_id)
         if est is None:
             await message.answer("Primero necesito tu registro. Escribe /start.")
             return
@@ -105,3 +108,11 @@ async def cmd_repasos(message: Message, state: FSMContext):
 async def btn_repasos(message: Message, state: FSMContext):
     await limpiar_seccion(message, state)
     await cmd_repasos(message, state)
+
+
+@router.callback_query(F.data == "m:repasos")
+async def cb_repasos(call: CallbackQuery, state: FSMContext):
+    """Entrada desde el recordatorio agrupado."""
+    await limpiar_seccion(call.message, state)
+    await cmd_repasos(call.message, state, tg_id=call.from_user.id)
+    await call.answer()

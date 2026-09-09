@@ -102,6 +102,14 @@ async def generar_pendientes(s: AsyncSession) -> int:
 
 
 async def enviar_pendientes(bot: Bot, s: AsyncSession) -> int:
+    """Envía un solo mensaje por estudiante, no uno por cápsula vencida.
+
+    Alguien con cuatro repasos pendientes recibiría cuatro mensajes seguidos,
+    que es la vía más rápida a que silencie el bot. Las filas de `reminders` se
+    siguen creando una por cápsula —son el registro de lo programado— pero
+    todas las de un mismo estudiante se marcan como enviadas con un único aviso
+    que lo lleva a la lista de repasos.
+    """
     ahora = datetime.now(timezone.utc)
 
     filas = (await s.execute(
@@ -115,38 +123,63 @@ async def enviar_pendientes(bot: Bot, s: AsyncSession) -> int:
             Student.activo.is_(True),
             Student.consentimiento.is_(True),
         )
-        .order_by(Reminder.programado_en)
+        .order_by(Reminder.student_id, Reminder.programado_en)
         .limit(LOTE)
     )).all()
 
-    enviados = 0
+    # Agrupa por estudiante: un aviso por persona, con todas sus cápsulas.
+    por_estudiante: dict[int, list] = {}
+    estudiantes: dict[int, Student] = {}
     for recordatorio, estudiante, sr in filas:
+        por_estudiante.setdefault(estudiante.id, []).append((recordatorio, sr))
+        estudiantes[estudiante.id] = estudiante
+
+    enviados = 0
+    for student_id, pendientes in por_estudiante.items():
+        estudiante = estudiantes[student_id]
+        n = len(pendientes)
+
+        plural = "repaso pendiente" if n == 1 else "repasos pendientes"
+        mensaje = (f"🔁 <b>Toca repasar</b>\n\n"
+                   f"Tienes <b>{n}</b> {plural}.\n"
+                   f"Repasar ahora consolida lo que ya estudiaste.")
+
+        # Con una sola cápsula se entra directo; con varias, a la lista.
+        if n == 1:
+            destino = f"m:c:{pendientes[0][1].capsule_id}"
+            etiqueta = "📖 Repasar ahora"
+        else:
+            destino = "m:repasos"
+            etiqueta = f"📋 Ver mis {n} repasos"
+
         teclado = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="📖 Repasar ahora",
-                                 callback_data=f"m:c:{sr.capsule_id}")
+            InlineKeyboardButton(text=etiqueta, callback_data=destino)
         ]])
+
         try:
-            await bot.send_message(estudiante.telegram_id,
-                                   recordatorio.mensaje, reply_markup=teclado)
-            recordatorio.estado = "enviado"
-            recordatorio.enviado_en = datetime.now(timezone.utc)
-            recordatorio.intentos_envio += 1
-            s.add(Event(student_id=estudiante.id, ciclo=1,
+            await bot.send_message(estudiante.telegram_id, mensaje,
+                                   reply_markup=teclado)
+            ahora_env = datetime.now(timezone.utc)
+            for recordatorio, sr in pendientes:
+                recordatorio.estado = "enviado"
+                recordatorio.enviado_en = ahora_env
+                recordatorio.intentos_envio += 1
+            s.add(Event(student_id=student_id, ciclo=1,
                         tipo="recordatorio_enviado",
-                        payload={"capsule_id": sr.capsule_id,
-                                 "reminder_id": recordatorio.id}))
+                        payload={"n_capsulas": n,
+                                 "reminder_ids": [r.id for r, _ in pendientes]}))
             enviados += 1
         except Exception as e:                       # noqa: BLE001
-            recordatorio.intentos_envio += 1
-            recordatorio.error_detalle = str(e)[:500]
-            if recordatorio.intentos_envio >= MAX_INTENTOS:
-                recordatorio.estado = "fallido"
-                s.add(Event(student_id=estudiante.id, ciclo=1,
-                            tipo="recordatorio_fallido",
-                            payload={"reminder_id": recordatorio.id,
-                                     "error": str(e)[:200]}))
-            logger.warning("Fallo al enviar recordatorio %s: %s",
-                           recordatorio.id, e)
+            for recordatorio, _ in pendientes:
+                recordatorio.intentos_envio += 1
+                recordatorio.error_detalle = str(e)[:500]
+                if recordatorio.intentos_envio >= MAX_INTENTOS:
+                    recordatorio.estado = "fallido"
+            s.add(Event(student_id=student_id, ciclo=1,
+                        tipo="recordatorio_fallido",
+                        payload={"n_capsulas": n, "error": str(e)[:200]}))
+            logger.warning("Fallo al enviar recordatorio a %s: %s",
+                           student_id, e)
 
     if filas:
         await s.commit()
