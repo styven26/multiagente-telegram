@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 
 from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -112,6 +112,26 @@ async def enviar_pendientes(bot: Bot, s: AsyncSession) -> int:
     """
     ahora = datetime.now(timezone.utc)
 
+    # Repasos hechos antes de tiempo dejan recordatorios huérfanos: la fecha de
+    # SM-2 avanzó pero la fila de `reminders` ya estaba creada. Se cancelan en
+    # vez de enviarse, y queda constancia de cuántos.
+    cancelados = (await s.execute(
+        update(Reminder)
+        .where(
+            Reminder.estado == "pendiente",
+            Reminder.programado_en <= ahora,
+            Reminder.spaced_repetition_id.in_(
+                select(SpacedRepetition.id).where(
+                    SpacedRepetition.proxima_revision_en > ahora
+                )
+            ),
+        )
+        .values(estado="cancelado")
+    )).rowcount
+    if cancelados:
+        logger.info("Recordatorios cancelados por repaso adelantado: %d",
+                    cancelados)
+
     filas = (await s.execute(
         select(Reminder, Student, SpacedRepetition)
         .join(Student, Student.id == Reminder.student_id)
@@ -120,6 +140,8 @@ async def enviar_pendientes(bot: Bot, s: AsyncSession) -> int:
         .where(
             Reminder.estado == "pendiente",
             Reminder.programado_en <= ahora,
+            SpacedRepetition.activo.is_(True),
+            SpacedRepetition.proxima_revision_en <= ahora,
             Student.activo.is_(True),
             Student.consentimiento.is_(True),
         )
@@ -181,6 +203,6 @@ async def enviar_pendientes(bot: Bot, s: AsyncSession) -> int:
             logger.warning("Fallo al enviar recordatorio a %s: %s",
                            student_id, e)
 
-    if filas:
+    if filas or cancelados:
         await s.commit()
     return enviados
