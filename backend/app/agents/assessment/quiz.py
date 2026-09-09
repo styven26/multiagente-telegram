@@ -306,7 +306,7 @@ async def _cerrar_quiz(call: CallbackQuery, state: FSMContext, previo: str):
     else:
         aviso = "🔁 Práctica extra registrada. Tu repaso programado sigue en pie."
 
-    resumen = (f"{previo}\n\n———\n\n{marca} <b>Quiz completado</b>\n"
+    resumen = (f"{previo}\n\n──────────────────\n\n{marca} <b>Quiz completado</b>\n"
                f"Aciertos: <b>{aciertos} de {total}</b> ({nivel:.0%})\n\n"
                f"{aviso}")
 
