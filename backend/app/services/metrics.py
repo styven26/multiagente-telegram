@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import Date, Integer, distinct, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.db.models import (
     Capsule, Mastery, Response, Student, StudySession, Topic,
 )
@@ -28,22 +29,37 @@ from app.db.models import (
 VENTANA_ACTIVIDAD_DIAS = 7
 
 
+def _cohorte():
+    """Condición de cohorte para el dashboard.
+
+    Sin COHORTE_ACTUAL definida no filtra nada, así el entorno de desarrollo
+    sigue viendo todo. Con ella, las pruebas del desarrollador quedan fuera de
+    las métricas del estudio sin necesidad de borrar el histórico.
+    """
+    if settings.COHORTE_ACTUAL is None:
+        return True
+    return Student.cohorte == settings.COHORTE_ACTUAL
+
+
 async def resumen(s: AsyncSession) -> dict:
     corte = datetime.now(timezone.utc) - timedelta(days=VENTANA_ACTIVIDAD_DIAS)
     correcta = func.cast(Response.es_correcta, Integer)
 
     total_estudiantes = await s.scalar(
-        select(func.count(Student.id)).where(Student.consentimiento.is_(True))
+        select(func.count(Student.id))
+        .where(Student.consentimiento.is_(True), _cohorte())
     ) or 0
 
     estudiantes_activos = await s.scalar(
         select(func.count(distinct(Response.student_id)))
-        .where(Response.respondido_en >= corte)
+        .join(Student, Student.id == Response.student_id)
+        .where(Response.respondido_en >= corte, _cohorte())
     ) or 0
 
     capsulas_entregadas = await s.scalar(
         select(func.count(StudySession.id))
-        .where(StudySession.completada.is_(True))
+        .join(Student, Student.id == StudySession.student_id)
+        .where(StudySession.completada.is_(True), _cohorte())
     ) or 0
 
     total_temas = await s.scalar(
@@ -52,6 +68,8 @@ async def resumen(s: AsyncSession) -> dict:
 
     n_resp, n_ok = (await s.execute(
         select(func.count(Response.id), func.coalesce(func.sum(correcta), 0))
+        .join(Student, Student.id == Response.student_id)
+        .where(_cohorte())
     )).one()
 
     # --- Dominio por tema (incluye temas sin datos, con dominio 0) ---
@@ -62,7 +80,8 @@ async def resumen(s: AsyncSession) -> dict:
             func.coalesce(func.sum(Mastery.numero_evidencias), 0),
         )
         .join(Mastery, Mastery.topic_id == Topic.id, isouter=True)
-        .where(Topic.activo.is_(True))
+        .join(Student, Student.id == Mastery.student_id, isouter=True)
+        .where(Topic.activo.is_(True), _cohorte())
         .group_by(Topic.id, Topic.nombre, Topic.orden)
         .order_by(Topic.orden)
     )).all()
@@ -75,6 +94,8 @@ async def resumen(s: AsyncSession) -> dict:
             func.coalesce(func.sum(correcta), 0).label("ok"),
             func.max(Response.respondido_en).label("ultima"),
         )
+        .join(Student, Student.id == Response.student_id)
+        .where(_cohorte())
         .group_by(Response.student_id)
         .subquery()
     )
@@ -85,7 +106,8 @@ async def resumen(s: AsyncSession) -> dict:
             func.count(distinct(Capsule.topic_id)).label("temas"),
         )
         .join(Capsule, Capsule.id == StudySession.capsule_id)
-        .where(StudySession.completada.is_(True))
+        .join(Student, Student.id == StudySession.student_id)
+        .where(StudySession.completada.is_(True), _cohorte())
         .group_by(StudySession.student_id)
         .subquery()
     )
@@ -100,18 +122,21 @@ async def resumen(s: AsyncSession) -> dict:
         )
         .join(respuestas_por_est, respuestas_por_est.c.sid == Student.id, isouter=True)
         .join(temas_por_est, temas_por_est.c.sid == Student.id, isouter=True)
-        .where(Student.consentimiento.is_(True))
+        .where(Student.consentimiento.is_(True), _cohorte())
         .order_by(respuestas_por_est.c.ultima.desc().nullslast())
     )).all()
 
     # --- Embudo Lean: inicio -> finalización -> retorno D1 ---
     iniciaron = await s.scalar(
         select(func.count(distinct(StudySession.student_id)))
+        .join(Student, Student.id == StudySession.student_id)
+        .where(_cohorte())
     ) or 0
 
     completaron = await s.scalar(
         select(func.count(distinct(StudySession.student_id)))
-        .where(StudySession.completada.is_(True))
+        .join(Student, Student.id == StudySession.student_id)
+        .where(StudySession.completada.is_(True), _cohorte())
     ) or 0
 
     # Pares (estudiante, día con actividad). El LEFT JOIN contra sí misma
@@ -123,6 +148,8 @@ async def resumen(s: AsyncSession) -> dict:
             StudySession.student_id.label("sid"),
             func.date(StudySession.iniciada_en).label("dia"),
         )
+        .join(Student, Student.id == StudySession.student_id)
+        .where(_cohorte())
         .distinct()
         .subquery()
     )
