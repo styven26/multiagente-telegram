@@ -79,9 +79,23 @@ async def cmd_repasos(message: Message, state: FSMContext, tg_id: int | None = N
 
     if not filas:
         texto = "🔁 <b>Repasos</b>\n\nNo tienes repasos pendientes."
+
         if proximo is not None:
-            local = proximo.astimezone(ZoneInfo(settings.TIMEZONE))
-            texto += f"\n\nEl siguiente será el <b>{local:%d/%m}</b>."
+            tz = ZoneInfo(settings.TIMEZONE)
+            local = proximo.astimezone(tz)
+            dias = (local.date() - datetime.now(tz).date()).days
+
+            # La hora solo orienta si es inminente: a cinco días vista, lo que
+            # el estudiante necesita saber es el día.
+            if dias == 0:
+                cuando = f"hoy a las {local:%H:%M}"
+            elif dias == 1:
+                cuando = f"mañana a las {local:%H:%M}"
+            else:
+                cuando = f"el {local:%d/%m}"
+
+            texto += f"\n\nEl siguiente será <b>{cuando}</b>."
+
         enviado = await message.answer(texto)
         await recordar_seccion(enviado, state)
         return
