@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from sqlalchemy import select, update
+from app.agents.base import teclado_principal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -181,6 +182,19 @@ async def enviar_pendientes(bot: Bot, s: AsyncSession) -> int:
         try:
             await bot.send_message(estudiante.telegram_id, mensaje,
                                    reply_markup=teclado)
+            # El menú fijo guarda el contador del último envío: si no se
+            # reenvía, el estudiante lee «3 repasos pendientes» en el aviso y
+            # «Repasos (0)» justo debajo. Telegram no permite teclado inline y
+            # fijo en el mismo mensaje, de ahí el segundo.
+            try:
+                await bot.send_message(
+                    estudiante.telegram_id,
+                    "Tu menú está actualizado 👇",
+                    reply_markup=await teclado_principal(s, student_id),
+                )
+            except Exception as e:                   # noqa: BLE001
+                logger.warning("No se pudo refrescar el menú de %s: %s",
+                               student_id, e)
             ahora_env = datetime.now(timezone.utc)
             for recordatorio, sr in pendientes:
                 recordatorio.estado = "enviado"
