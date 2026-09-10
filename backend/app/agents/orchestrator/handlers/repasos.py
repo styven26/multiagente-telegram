@@ -81,12 +81,17 @@ async def cmd_repasos(message: Message, state: FSMContext, tg_id: int | None = N
         texto = "🔁 <b>Repasos</b>\n\nNo tienes repasos pendientes."
 
         if proximo is not None:
+            from app.agents.spaced_repetition.reminder_service import (
+                _ajustar_a_horario_decente,
+            )
+
             tz = ZoneInfo(settings.TIMEZONE)
-            local = proximo.astimezone(tz)
+            # Se muestra la hora del aviso, no la que calculó SM-2: un repaso
+            # que vence a las 00:25 se recuerda a las 08:00, y decirle al
+            # estudiante la hora cruda le anuncia un momento que no verá.
+            local = _ajustar_a_horario_decente(proximo).astimezone(tz)
             dias = (local.date() - datetime.now(tz).date()).days
 
-            # La hora solo orienta si es inminente: a cinco días vista, lo que
-            # el estudiante necesita saber es el día.
             if dias == 0:
                 cuando = f"hoy a las {local:%H:%M}"
             elif dias == 1:
