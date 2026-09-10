@@ -9,7 +9,7 @@ from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import BotCommand
 
 from app.agents.assessment import quiz
-from app.agents.orchestrator.handlers import menu, perfil, repasos, salir, start
+from app.agents.orchestrator.handlers import menu, fallback, perfil, repasos, salir, start
 from app.agents.orchestrator.middlewares import ConsentimientoMiddleware
 from app.config import settings
 from app.agents.spaced_repetition.scheduler import crear_scheduler
@@ -30,6 +30,7 @@ def crear_dispatcher() -> Dispatcher:
     dp.include_router(repasos.router)
     dp.include_router(menu.router)
     dp.include_router(salir.router)
+    dp.include_router(fallback.router)
     return dp
     
 
