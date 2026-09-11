@@ -10,7 +10,9 @@ DEFINICIONES (fíjalas aquí y cítalas igual en la tesis):
 
 EMBUDO LEAN:
   · Tasa de inicio        : estudiantes con >=1 StudySession / registrados
-  · Tasa de finalización  : de los que iniciaron, cuántos completaron >=1 cápsula
+  · Tasa de finalización  : de los que iniciaron, cuántos completaron >=1 cápsula.
+                            Solo cuenta sesiones cerradas (finalizada_en no nulo):
+                            una sesión en curso aún no es un abandono.
   · Retorno D1            : por cohorte diaria — de los activos el día X, cuántos
                             registran actividad el día X+1. El día en curso sale
                             marcado como parcial: su "día siguiente" aún no existe.
@@ -127,16 +129,20 @@ async def resumen(s: AsyncSession) -> dict:
     )).all()
 
     # --- Embudo Lean: inicio -> finalización -> retorno D1 ---
+    # Solo sesiones resueltas: quien lleva cinco minutos leyendo no ha
+    # abandonado nada todavía, y contarlo como "inició sin completar" hunde
+    # la tasa mientras el estudiante sigue estudiando.
     iniciaron = await s.scalar(
         select(func.count(distinct(StudySession.student_id)))
         .join(Student, Student.id == StudySession.student_id)
-        .where(_cohorte())
+        .where(StudySession.finalizada_en.is_not(None), _cohorte())
     ) or 0
 
     completaron = await s.scalar(
         select(func.count(distinct(StudySession.student_id)))
         .join(Student, Student.id == StudySession.student_id)
-        .where(StudySession.completada.is_(True), _cohorte())
+        .where(StudySession.completada.is_(True),
+               StudySession.finalizada_en.is_not(None), _cohorte())
     ) or 0
 
     # Pares (estudiante, día con actividad). El LEFT JOIN contra sí misma

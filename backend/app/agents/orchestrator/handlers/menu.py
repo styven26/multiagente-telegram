@@ -7,6 +7,7 @@ devuelve aquí al terminar mediante el botón Menú.
 Solo se muestra lo que el docente dejó activo en el panel.
 """
 
+from datetime import datetime, timezone
 from html import escape
 
 from aiogram import F, Router
@@ -15,7 +16,10 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import ( CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, ReplyKeyboardRemove, )
 from sqlalchemy import func, select
 
-from app.agents.base import estudiante_por_telegram as _estudiante, limpiar_seccion, recordar_seccion, traza
+from app.agents.base import (
+    estudiante_por_telegram as _estudiante, limpiar_seccion,
+    recordar_seccion, teclado_principal, traza,
+)
 from app.db.base import SessionLocal
 from app.db.models import Capsule, Event, Question, StudySession, Topic
 
@@ -201,12 +205,17 @@ async def cb_capsula(call: CallbackQuery, state: FSMContext):
 
     # El callback "m:quiz" lo atiende el Agente de Evaluación.
     if n_preguntas:
-        teclado = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text=f"✏️ Hacer el quiz ({n_preguntas})",
-                                 callback_data="m:quiz")
-        ]])
+        teclado = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=f"✏️ Hacer el quiz ({n_preguntas})",
+                                  callback_data="m:quiz")],
+            [InlineKeyboardButton(text="⬅️ Volver",
+                                  callback_data="m:salir_capsula")],
+        ])
     else:
-        teclado = InlineKeyboardMarkup(inline_keyboard=[])
+        teclado = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="⬅️ Volver",
+                                 callback_data="m:salir_capsula")
+        ]])
         texto += "\n\n<i>Esta cápsula aún no tiene preguntas.</i>"
 
     if call.message.photo:
@@ -223,3 +232,50 @@ async def btn_estudiar(message: Message, state: FSMContext):
     etiqueta del botón como si el estudiante la hubiera escrito."""
     await limpiar_seccion(message, state)
     await cmd_menu(message, state)
+
+
+@router.callback_query(F.data == "m:salir_capsula")
+async def cb_salir_capsula(call: CallbackQuery, state: FSMContext):
+    """Salida limpia desde el contenido, antes de empezar el quiz.
+
+    Sin esto la única vía es cerrar Telegram, y la sesión queda abierta hasta
+    que el cierre por inactividad la recoge sin poder saber cuánto tiempo
+    estuvo leyendo. Aquí sí se conoce.
+    """
+    datos = await state.get_data()
+    session_id = datos.get("session_id")
+
+    async with SessionLocal() as s:
+        if session_id is not None:
+            sesion = await s.get(StudySession, session_id)
+            if sesion is not None and sesion.finalizada_en is None:
+                ahora = datetime.now(timezone.utc)
+                sesion.finalizada_en = ahora
+                sesion.duracion_seg = max(
+                    0.0, (ahora - sesion.iniciada_en).total_seconds())
+                sesion.completada = False
+                s.add(Event(student_id=sesion.student_id, session_id=sesion.id,
+                            ciclo=1, tipo="capsula_cerrada_por_estudiante",
+                            payload={"capsule_id": sesion.capsule_id,
+                                     "duracion_seg": round(sesion.duracion_seg, 1)}))
+                await s.commit()
+
+        est = await _estudiante(s, call.from_user.id)
+        texto, teclado_menu = await _menu_unidades(s)
+        teclado_fijo = await teclado_principal(s, est.id) if est else None
+
+    await state.clear()
+
+    if call.message.photo:
+        await call.message.delete()
+        await call.message.answer(texto, reply_markup=teclado_menu)
+    else:
+        await call.message.edit_text(texto, reply_markup=teclado_menu)
+
+    if teclado_fijo is not None:
+        aviso = await call.message.answer(
+            "Sin problema. Puedes retomar esta cápsula cuando te vaya mejor.",
+            reply_markup=teclado_fijo)
+        await recordar_seccion(aviso, state)
+
+    await call.answer()

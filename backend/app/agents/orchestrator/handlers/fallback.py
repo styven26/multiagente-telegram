@@ -20,7 +20,7 @@ from app.db.base import SessionLocal
 
 router = Router(name="fallback")
 
-SEGUNDOS_VISIBLE = 4
+SEGUNDOS_VISIBLE = 2
 
 
 @router.message(F.text)

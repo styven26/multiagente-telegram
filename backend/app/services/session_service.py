@@ -15,7 +15,7 @@ from app.db.models import Event, Response, StudySession
 
 logger = logging.getLogger(__name__)
 
-INACTIVIDAD_HORAS = 2
+INACTIVIDAD_HORAS = 1
 
 
 async def cerrar_abandonadas(s: AsyncSession) -> int:
