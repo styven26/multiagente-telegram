@@ -19,7 +19,7 @@ EMBUDO LEAN:
 """
 
 from datetime import datetime, timedelta, timezone
-
+from zoneinfo import ZoneInfo
 from sqlalchemy import Date, Integer, distinct, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -162,7 +162,9 @@ async def resumen(s: AsyncSession) -> dict:
     dias = (
         select(
             StudySession.student_id.label("sid"),
-            func.date(StudySession.iniciada_en).label("dia"),
+            # El día se cuenta en hora local: en UTC, lo que se estudia
+            # después de las 19:00 en Guayaquil caería en el día siguiente.
+            func.date(func.timezone(settings.TIMEZONE, StudySession.iniciada_en)).label("dia"),
         )
         .join(Student, Student.id == StudySession.student_id)
         .where(_cohorte())
@@ -187,7 +189,7 @@ async def resumen(s: AsyncSession) -> dict:
         .order_by(dias.c.dia)
     )).all()
 
-    hoy = datetime.now(timezone.utc).date()
+    hoy = datetime.now(ZoneInfo(settings.TIMEZONE)).date()
 
     return {
         "estudiantes_activos": estudiantes_activos,
