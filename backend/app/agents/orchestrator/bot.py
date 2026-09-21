@@ -1,7 +1,7 @@
 """Arranque del Agente Orquestador (aiogram 3). [Ciclo 1]"""
 
 import logging
-
+from datetime import timedelta
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -13,6 +13,7 @@ from app.agents.orchestrator.handlers import menu, fallback, perfil, repasos, sa
 from app.agents.orchestrator.middlewares import ConsentimientoMiddleware
 from app.config import settings
 from app.agents.spaced_repetition.scheduler import crear_scheduler
+from app.services.session_service import INACTIVIDAD_HORAS
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,13 @@ COMANDOS = [
 
 
 def crear_dispatcher() -> Dispatcher:
-    dp = Dispatcher(storage=RedisStorage.from_url(settings.REDIS_URL))
+    # El estado del quiz caduca a la misma hora en que la sesión se da por
+    # abandonada: si durara más, un botón viejo permitiría terminar un quiz
+    # contra una sesión ya cerrada, con horas de "estudio" que no existieron.
+    ttl = timedelta(hours=INACTIVIDAD_HORAS)
+    dp = Dispatcher(storage=RedisStorage.from_url(
+        settings.REDIS_URL, state_ttl=ttl, data_ttl=ttl,
+    ))
     dp.update.outer_middleware(ConsentimientoMiddleware())
     dp.include_router(quiz.router)
     dp.include_router(start.router)

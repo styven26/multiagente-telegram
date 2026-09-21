@@ -47,6 +47,29 @@ def _archivo_imagen(imagen_url: str | None) -> FSInputFile | None:
     ruta = RAIZ_MEDIA / imagen_url.lstrip("/")
     return FSInputFile(ruta) if ruta.is_file() else None
 
+async def _sesion_caducada(call: CallbackQuery, state: FSMContext) -> None:
+    """La sesión se cerró por inactividad mientras el quiz seguía vivo.
+
+    Se descarta el quiz en vez de continuarlo: terminarlo marcaría como
+    completada una sesión ya registrada como abandonada, con una duración que
+    incluiría todo el tiempo que el estudiante estuvo fuera.
+    """
+    await state.clear()
+    async with SessionLocal() as s:
+        est = await _estudiante(s, call.from_user.id)
+        teclado = await teclado_principal(s, est.id) if est else None
+
+    try:
+        await call.message.delete()
+    except Exception:                                # noqa: BLE001
+        logger.debug("No se pudo borrar el mensaje caducado", exc_info=True)
+
+    await call.message.answer(
+        "Este quiz caducó por inactividad. Vuelve a abrir la cápsula desde "
+        "📚 Estudiar para empezarlo de nuevo.",
+        reply_markup=teclado,
+    )
+    await call.answer()
 
 @router.callback_query(F.data == "m:quiz")
 async def cb_quiz(call: CallbackQuery, state: FSMContext):
@@ -54,6 +77,14 @@ async def cb_quiz(call: CallbackQuery, state: FSMContext):
     capsule_id = datos.get("capsule_id")
     if not capsule_id:
         await call.answer("Empieza desde /menu.", show_alert=True)
+        return
+    
+    session_id = datos.get("session_id")
+    async with SessionLocal() as s:
+        sesion = await s.get(StudySession, session_id) if session_id else None
+        caducada = sesion is None or sesion.finalizada_en is not None
+    if caducada:
+        await _sesion_caducada(call, state)
         return
 
     async with SessionLocal() as s:
@@ -154,6 +185,11 @@ async def cb_responder(call: CallbackQuery, state: FSMContext):
         if est is None or pregunta is None:
             await state.clear()
             await call.answer("No disponible. Escribe /menu.", show_alert=True)
+            return
+        
+        sesion = await s.get(StudySession, datos["session_id"])
+        if sesion is None or sesion.finalizada_en is not None:
+            await _sesion_caducada(call, state)
             return
 
         async with traza(s, "evaluation", "calificar_respuesta",
