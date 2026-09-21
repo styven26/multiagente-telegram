@@ -75,15 +75,25 @@ async def resumen(s: AsyncSession) -> dict:
     )).one()
 
     # --- Dominio por tema (incluye temas sin datos, con dominio 0) ---
+    # El filtro de cohorte va dentro de la subconsulta, no en el WHERE final:
+    # tras un LEFT JOIN, un tema sin datos de la cohorte tiene cohorte NULL, y
+    # el WHERE lo eliminaría en vez de mostrarlo con dominio 0.
+    mastery_cohorte = (
+        select(Mastery.topic_id, Mastery.nivel, Mastery.numero_evidencias)
+        .join(Student, Student.id == Mastery.student_id)
+        .where(_cohorte())
+        .subquery()
+    )
+
     filas_temas = (await s.execute(
         select(
             Topic.id, Topic.nombre,
-            func.coalesce(func.avg(Mastery.nivel), 0.0),
-            func.coalesce(func.sum(Mastery.numero_evidencias), 0),
+            func.coalesce(func.avg(mastery_cohorte.c.nivel), 0.0),
+            func.coalesce(func.sum(mastery_cohorte.c.numero_evidencias), 0),
         )
-        .join(Mastery, Mastery.topic_id == Topic.id, isouter=True)
-        .join(Student, Student.id == Mastery.student_id, isouter=True)
-        .where(Topic.activo.is_(True), _cohorte())
+        .join(mastery_cohorte, mastery_cohorte.c.topic_id == Topic.id,
+              isouter=True)
+        .where(Topic.activo.is_(True))
         .group_by(Topic.id, Topic.nombre, Topic.orden)
         .order_by(Topic.orden)
     )).all()
