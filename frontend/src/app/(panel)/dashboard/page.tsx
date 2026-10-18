@@ -200,7 +200,11 @@ function SerieRetorno({ dias }: { dias: RetornoDia[] }) {
     );
   }
 
-  const ANCHO = 640;
+/* El ancho del viewBox crece con los días para que el SVG se dibuje a
+     escala 1:1 con su minWidth. Con un ancho fijo, estirarlo agrandaba
+     también la altura y amontonaba las fechas unas sobre otras. */
+  const POR_DIA = 58;
+  const ANCHO = Math.max(420, utiles.length * POR_DIA);
   const ALTO = 190;
   const PAD_X = 34;
   const PAD_ARRIBA = 26;
@@ -224,13 +228,17 @@ function SerieRetorno({ dias }: { dias: RetornoDia[] }) {
 
   const promedio = puntos.reduce((acc, pt) => acc + pt.p, 0) / puntos.length;
 
+  /* "29/08": ancho fijo y sin construir un Date, que volvería a traer el
+     problema de zona horaria que ya corregimos en las métricas. */
+  const diaMes = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+
   return (
     <div className="rounded-xl border border-[#1a1830]/10 bg-white p-6">
       <div className="overflow-x-auto">
         <svg viewBox={`0 0 ${ANCHO} ${ALTO}`}
-             style={{ minWidth: `${Math.max(420, utiles.length * 88)}px` }}
-             className="h-auto w-full" role="img"
-             aria-label="Retorno al día siguiente por fecha">
+            style={{ minWidth: `${ANCHO}px` }}
+            className="h-auto w-full" role="img"
+            aria-label="Retorno al día siguiente por fecha">
           <defs>
             <linearGradient id="degradadoRetorno" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={VERDE} stopOpacity="0.22" />
@@ -267,7 +275,7 @@ function SerieRetorno({ dias }: { dias: RetornoDia[] }) {
               </text>
               <text x={pt.x} y={ALTO - 14} fontSize="10.5" textAnchor="middle"
                     fill={MEDIO} fontFamily="ui-monospace, monospace">
-                {fecha(pt.d.dia)}
+                {diaMes(pt.d.dia)}
               </text>
               <text x={pt.x} y={ALTO - 2} fontSize="9.5" textAnchor="middle"
                     fill={TENUE} fontFamily="ui-monospace, monospace">
