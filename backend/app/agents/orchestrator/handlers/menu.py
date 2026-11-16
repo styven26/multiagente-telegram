@@ -58,7 +58,10 @@ async def _menu_unidades(s) -> tuple[str, InlineKeyboardMarkup]:
 
 @router.message(Command("menu"))
 async def cmd_menu(message: Message, state: FSMContext):
+    aviso_previo = (await state.get_data()).get("aviso_msg_id")
     await state.clear()
+    if aviso_previo is not None:
+        await state.update_data(aviso_msg_id=aviso_previo)
     async with SessionLocal() as s:
         est = await _estudiante(s, message.from_user.id)
         if est is None or not est.consentimiento:
@@ -74,7 +77,10 @@ async def cmd_menu(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "m:inicio")
 async def cb_inicio(call: CallbackQuery, state: FSMContext):
+    aviso_previo = (await state.get_data()).get("aviso_msg_id")
     await state.clear()
+    if aviso_previo is not None:
+        await state.update_data(aviso_msg_id=aviso_previo)
     async with SessionLocal() as s:
         texto, teclado = await _menu_unidades(s)
 
@@ -82,10 +88,11 @@ async def cb_inicio(call: CallbackQuery, state: FSMContext):
     # no se puede convertir en texto, hay que reemplazarlo.
     if call.message.photo:
         await call.message.delete()
-        await call.message.answer(texto, reply_markup=teclado)
+        enviado = await call.message.answer(texto, reply_markup=teclado)
     else:
-        await call.message.edit_text(texto, reply_markup=teclado)
+        enviado = await call.message.edit_text(texto, reply_markup=teclado)
 
+    await recordar_seccion(enviado, state)
     await call.answer()
 
 
@@ -245,6 +252,7 @@ async def cb_salir_capsula(call: CallbackQuery, state: FSMContext):
     """
     datos = await state.get_data()
     session_id = datos.get("session_id")
+    aviso_previo = datos.get("aviso_msg_id")
 
     async with SessionLocal() as s:
         if session_id is not None:
@@ -279,8 +287,16 @@ async def cb_salir_capsula(call: CallbackQuery, state: FSMContext):
     await recordar_seccion(enviado, state)
 
     if teclado_fijo is not None:
-        await call.message.answer(
+        aviso = await call.message.answer(
             "Sin problema. Puedes retomar esta cápsula cuando te vaya mejor.",
             reply_markup=teclado_fijo)
+        # Se borra el anterior DESPUÉS de mandar el nuevo: al revés, el teclado
+        # fijo se iría con él y el estudiante quedaría sin menú.
+        if aviso_previo is not None:
+            try:
+                await call.bot.delete_message(call.message.chat.id, aviso_previo)
+            except Exception:                        # noqa: BLE001
+                pass
+        await state.update_data(aviso_msg_id=aviso.message_id)
 
     await call.answer()
