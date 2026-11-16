@@ -246,7 +246,6 @@ async def cb_salir_capsula(call: CallbackQuery, state: FSMContext):
     """
     datos = await state.get_data()
     session_id = datos.get("session_id")
-    aviso_previo = datos.get("aviso_msg_id")
 
     async with SessionLocal() as s:
         if session_id is not None:
@@ -264,26 +263,24 @@ async def cb_salir_capsula(call: CallbackQuery, state: FSMContext):
                 await s.commit()
 
         est = await _estudiante(s, call.from_user.id)
-        texto, teclado_menu = await _menu_unidades(s)
         teclado_fijo = await teclado_principal(s, est.id) if est else None
 
     await limpiar_estado(state)
 
-    if call.message.photo:
+    # Al salir no se deja ningún menú inline: si quedara uno, viviría por encima
+    # del aviso y el estudiante podría abrir una unidad desde una pantalla que ya
+    # no corresponde. La navegación vuelve al menú fijo de abajo.
+    try:
         await call.message.delete()
-        enviado = await call.message.answer(texto, reply_markup=teclado_menu)
-    else:
-        enviado = await call.message.edit_text(texto, reply_markup=teclado_menu)
-
-    # La sección activa es el menú de unidades, no el aviso: Telegram retira el
-    # teclado fijo junto con el mensaje que lo trajo, así que si limpiar_seccion
-    # borrara el aviso, el estudiante se quedaría sin menú al pulsar Estudiar.
-    await recordar_seccion(enviado, state)
+    except Exception:                                # noqa: BLE001
+        pass
+    await state.update_data(nav_msg_id=None)
 
     if teclado_fijo is not None:
         await enviar_menu_fijo(
             call.message,
-            "Sin problema. Puedes retomar esta cápsula cuando te vaya mejor.",
+            "Sin problema. Puedes retomar esta cápsula cuando te vaya mejor.\n"
+            "Pulsa 📚 Estudiar cuando quieras continuar.",
             teclado_fijo, state)
 
     await call.answer()
