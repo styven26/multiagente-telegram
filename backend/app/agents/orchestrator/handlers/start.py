@@ -9,7 +9,7 @@ from aiogram.types import (
     CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message,
 )
 from sqlalchemy import select
-from app.agents.base import limpiar_seccion, recordar_seccion, teclado_principal
+from app.agents.base import limpiar_seccion, recordar_seccion, teclado_principal, limpiar_estado, enviar_menu_fijo
 from app.core.anonymization import generar_codigo_anonimo
 from app.db.base import SessionLocal
 from app.db.models import Event, Student
@@ -44,7 +44,7 @@ teclado_consentimiento = InlineKeyboardMarkup(inline_keyboard=[[
 async def cmd_start(message: Message, state: FSMContext):
     # Si había un quiz en curso, se descarta: volver al inicio con el estado
     # vivo permitiría responder preguntas fuera de contexto y falsear tiempos.
-    await state.clear()
+    await limpiar_estado(state)
 
     tg_id = message.from_user.id
 
@@ -83,11 +83,11 @@ async def cmd_start(message: Message, state: FSMContext):
                   else "Ya estás registrado/a. ")
         async with SessionLocal() as s:
             teclado = await teclado_principal(s, student_id)
-        enviado = await message.answer(
+        await enviar_menu_fijo(
+            message,
             f"{saludo}Tu código es <code>{codigo}</code>.\n"
             "Usa el menú de abajo para continuar.",
-            reply_markup=teclado,
-        )
+            teclado, state)
     else:
         await message.answer(TEXTO_CONSENTIMIENTO,
                              reply_markup=teclado_consentimiento)

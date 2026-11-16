@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 
 from app.agents.base import (
     estudiante_por_telegram as _estudiante, limpiar_seccion,
-    recordar_seccion, teclado_principal, traza,
+    recordar_seccion, teclado_principal, traza, limpiar_estado, enviar_menu_fijo,
 )
 from app.db.base import SessionLocal
 from app.db.models import Capsule, Event, Question, StudySession, Topic
@@ -58,10 +58,7 @@ async def _menu_unidades(s) -> tuple[str, InlineKeyboardMarkup]:
 
 @router.message(Command("menu"))
 async def cmd_menu(message: Message, state: FSMContext):
-    aviso_previo = (await state.get_data()).get("aviso_msg_id")
-    await state.clear()
-    if aviso_previo is not None:
-        await state.update_data(aviso_msg_id=aviso_previo)
+    await limpiar_estado(state)
     async with SessionLocal() as s:
         est = await _estudiante(s, message.from_user.id)
         if est is None or not est.consentimiento:
@@ -77,10 +74,7 @@ async def cmd_menu(message: Message, state: FSMContext):
 
 @router.callback_query(F.data == "m:inicio")
 async def cb_inicio(call: CallbackQuery, state: FSMContext):
-    aviso_previo = (await state.get_data()).get("aviso_msg_id")
-    await state.clear()
-    if aviso_previo is not None:
-        await state.update_data(aviso_msg_id=aviso_previo)
+    await limpiar_estado(state)
     async with SessionLocal() as s:
         texto, teclado = await _menu_unidades(s)
 
@@ -273,7 +267,7 @@ async def cb_salir_capsula(call: CallbackQuery, state: FSMContext):
         texto, teclado_menu = await _menu_unidades(s)
         teclado_fijo = await teclado_principal(s, est.id) if est else None
 
-    await state.clear()
+    await limpiar_estado(state)
 
     if call.message.photo:
         await call.message.delete()
@@ -287,16 +281,9 @@ async def cb_salir_capsula(call: CallbackQuery, state: FSMContext):
     await recordar_seccion(enviado, state)
 
     if teclado_fijo is not None:
-        aviso = await call.message.answer(
+        await enviar_menu_fijo(
+            call.message,
             "Sin problema. Puedes retomar esta cápsula cuando te vaya mejor.",
-            reply_markup=teclado_fijo)
-        # Se borra el anterior DESPUÉS de mandar el nuevo: al revés, el teclado
-        # fijo se iría con él y el estudiante quedaría sin menú.
-        if aviso_previo is not None:
-            try:
-                await call.bot.delete_message(call.message.chat.id, aviso_previo)
-            except Exception:                        # noqa: BLE001
-                pass
-        await state.update_data(aviso_msg_id=aviso.message_id)
+            teclado_fijo, state)
 
     await call.answer()

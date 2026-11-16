@@ -93,3 +93,36 @@ async def limpiar_seccion(message, state: FSMContext) -> None:
 async def recordar_seccion(enviado, state: FSMContext) -> None:
     """Guarda el mensaje que quedará como sección activa."""
     await state.update_data(nav_msg_id=enviado.message_id)
+
+
+async def limpiar_estado(state: FSMContext) -> None:
+    """Borra el estado del flujo pero conserva los ids de mensajes rastreados.
+
+    nav_msg_id y aviso_msg_id no son estado del flujo: son punteros a mensajes
+    que siguen vivos en el chat. Si se van con el clear(), quedan huérfanos y
+    el estudiante termina con menús viejos clicables y avisos apilados.
+    """
+    datos = await state.get_data()
+    conservar = {k: datos[k]
+                 for k in ("nav_msg_id", "aviso_msg_id") if datos.get(k)}
+    await state.clear()
+    if conservar:
+        await state.update_data(**conservar)
+
+
+async def enviar_menu_fijo(message, texto: str, teclado, state: FSMContext):
+    """Manda el mensaje que porta el teclado fijo y retira el anterior.
+
+    Telegram se lleva el teclado fijo junto con el mensaje que lo trajo, por eso
+    el viejo se borra DESPUÉS de que el nuevo ya está en pantalla.
+    """
+    datos = await state.get_data()
+    previo = datos.get("aviso_msg_id")
+    enviado = await message.answer(texto, reply_markup=teclado)
+    if previo is not None and previo != enviado.message_id:
+        try:
+            await message.bot.delete_message(message.chat.id, previo)
+        except Exception:                            # noqa: BLE001
+            pass
+    await state.update_data(aviso_msg_id=enviado.message_id)
+    return enviado

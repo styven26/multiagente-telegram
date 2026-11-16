@@ -22,7 +22,7 @@ from aiogram.types import (
 )
 from sqlalchemy import Integer, func, select
 
-from app.agents.base import estudiante_por_telegram as _estudiante, teclado_principal, traza
+from app.agents.base import estudiante_por_telegram as _estudiante, teclado_principal, traza, limpiar_estado
 from app.agents.spaced_repetition import sm2 as sr_service
 from app.agents.student_model.inferencia import motor as motor_kt
 from app.db.base import SessionLocal
@@ -54,7 +54,7 @@ async def _sesion_caducada(call: CallbackQuery, state: FSMContext) -> None:
     completada una sesión ya registrada como abandonada, con una duración que
     incluiría todo el tiempo que el estudiante estuvo fuera.
     """
-    await state.clear()
+    await limpiar_estado(state)
     async with SessionLocal() as s:
         est = await _estudiante(s, call.from_user.id)
         teclado = await teclado_principal(s, est.id) if est else None
@@ -106,7 +106,7 @@ async def _mostrar_pregunta(call: CallbackQuery, state: FSMContext):
     ids, i = datos.get("ids"), datos.get("indice", 0)
 
     if not ids or i >= len(ids):
-        await state.clear()
+        await limpiar_estado(state)
         await call.answer("Ese quiz ya terminó. Escribe /menu.", show_alert=True)
         return
 
@@ -114,7 +114,7 @@ async def _mostrar_pregunta(call: CallbackQuery, state: FSMContext):
         pregunta = await s.get(Question, ids[i])
 
     if pregunta is None:                     # el docente la desactivó a mitad
-        await state.clear()
+        await limpiar_estado(state)
         await call.answer("Esa pregunta ya no está disponible. /menu",
                           show_alert=True)
         return
@@ -183,7 +183,7 @@ async def cb_responder(call: CallbackQuery, state: FSMContext):
         est = await _estudiante(s, call.from_user.id)
         pregunta = await s.get(Question, ids[i])
         if est is None or pregunta is None:
-            await state.clear()
+            await limpiar_estado(state)
             await call.answer("No disponible. Escribe /menu.", show_alert=True)
             return
         
@@ -332,7 +332,7 @@ async def _cerrar_quiz(call: CallbackQuery, state: FSMContext, previo: str):
         conto_repaso = conto
         est_id = est.id
 
-    await state.clear()
+    await limpiar_estado(state)
 
     marca = "🎉" if nivel >= 0.8 else ("👍" if nivel >= 0.5 else "💪")
 
