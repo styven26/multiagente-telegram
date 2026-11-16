@@ -105,6 +105,7 @@ async def cb_unidad(call: CallbackQuery):
                               callback_data=f"m:t:{t.id}")]
         for t in temas
     ]
+    botones.append([InlineKeyboardButton(text="⬅️ Volver", callback_data="m:inicio")])
 
     await call.message.edit_text(
         f"<b>Unidad {numero} · {UNIDADES[numero]}</b>\n\nElige un tema:",
