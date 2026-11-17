@@ -128,14 +128,14 @@ function Embudo({ registrados, iniciaron, completaron }: {
     {
       etiqueta: "Tasa de inicio",
       valor: iniciaron,
-      detalle: "Abrieron una cápsula",
+      detalle: "Abrieron y cerraron una cápsula",
       cifra: pct1(registrados ? iniciaron / registrados : 0),
       color: AMBAR,
     },
     {
       etiqueta: "Tasa de finalización",
       valor: completaron,
-      detalle: "Terminaron un quiz",
+      detalle: "Terminaron al menos un quiz",
       cifra: pct1(iniciaron ? completaron / iniciaron : 0),
       color: VERDE,
     },

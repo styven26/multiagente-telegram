@@ -9,7 +9,9 @@ DEFINICIONES (fíjalas aquí y cítalas igual en la tesis):
   · Tema completado       : tiene al menos una cápsula completada por ese estudiante
 
 EMBUDO LEAN:
-  · Tasa de inicio        : estudiantes con >=1 StudySession / registrados
+  · Tasa de inicio        : estudiantes con >=1 StudySession cerrada / registrados.
+                            Igual que abajo, solo cuentan sesiones cerradas: una
+                            en curso todavía no dice nada del estudiante.
   · Tasa de finalización  : de los que iniciaron, cuántos completaron >=1 cápsula.
                             Solo cuenta sesiones cerradas (finalizada_en no nulo):
                             una sesión en curso aún no es un abandono.

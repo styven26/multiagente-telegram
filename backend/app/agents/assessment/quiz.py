@@ -47,6 +47,17 @@ def _archivo_imagen(imagen_url: str | None) -> FSInputFile | None:
     ruta = RAIZ_MEDIA / imagen_url.lstrip("/")
     return FSInputFile(ruta) if ruta.is_file() else None
 
+
+def _fila_salir() -> list[InlineKeyboardButton]:
+    """Botón de salida, presente en toda pregunta y en toda retroalimentación.
+
+    Sin él la única salida es cerrar Telegram, y entonces la sesión queda
+    abierta hasta el barrido por inactividad: se pierde el momento real del
+    abandono y en qué pregunta ocurrió.
+    """
+    return [InlineKeyboardButton(text="⏸️ Salir del quiz", callback_data="m:salir_quiz")]
+
+
 async def _sesion_caducada(call: CallbackQuery, state: FSMContext) -> None:
     """La sesión se cerró por inactividad mientras el quiz seguía vivo.
 
@@ -128,12 +139,16 @@ async def _mostrar_pregunta(call: CallbackQuery, state: FSMContext):
              f"{pregunta.enunciado}\n\n{opciones_texto}")
 
     # Una sola fila con las letras: caben todas en el ancho del móvil.
-    teclado = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text=LETRAS[k], callback_data=f"m:r:{k}")
-        for k in range(len(pregunta.opciones))
-    ]])
+    teclado = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=LETRAS[k], callback_data=f"m:r:{k}")
+         for k in range(len(pregunta.opciones))],
+        _fila_salir(),
+    ])
 
-    await state.update_data(inicio=datetime.now(timezone.utc).timestamp())
+    # fase y n_opciones permiten reconstruir este teclado si el estudiante
+    # abre la confirmación de salida y se arrepiente, sin reenviar la pregunta
+    # (reenviarla reiniciaría `inicio` y falsearía tiempo_seg).
+    await state.update_data(inicio=datetime.now(timezone.utc).timestamp(), fase="pregunta", n_opciones=len(pregunta.opciones))
 
     foto = _archivo_imagen(pregunta.imagen_url)
 
@@ -250,15 +265,16 @@ async def cb_responder(call: CallbackQuery, state: FSMContext):
         feedback = escape(pregunta.retroalimentacion) if pregunta.retroalimentacion else None
 
     aciertos = datos["aciertos"] + (1 if correcta else 0)
-    await state.update_data(indice=i + 1, aciertos=aciertos, respondiendo=False)
+    await state.update_data(indice=i + 1, aciertos=aciertos, respondiendo=False, fase="feedback")
 
     cabecera = "✅ <b>Correcto</b>" if correcta else (
         f"❌ <b>Incorrecto</b>\nLa respuesta era: <b>{respuesta_texto}</b>")
     cuerpo = f"\n\n{feedback}" if feedback else ""
 
-    siguiente = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="Siguiente ➡️", callback_data="m:sig")
-    ]])
+    siguiente = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Siguiente ➡️", callback_data="m:sig")],
+        _fila_salir(),
+    ])
 
     # Si la pregunta tenía imagen, el mensaje es una foto: se edita el pie,
     # no el texto.
@@ -278,6 +294,99 @@ async def cb_responder(call: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "m:sig")
 async def cb_siguiente(call: CallbackQuery, state: FSMContext):
     await _mostrar_pregunta(call, state)
+
+
+@router.callback_query(F.data == "m:salir_quiz")
+async def cb_salir_quiz(call: CallbackQuery, state: FSMContext):
+    """Pide confirmación. Solo cambia el teclado: el enunciado sigue a la vista
+    para que el estudiante decida con la pregunta delante."""
+    datos = await state.get_data()
+    ids = datos.get("ids")
+    if not ids:
+        await call.answer()
+        return
+
+    respondidas, total = datos.get("indice", 0), len(ids)
+
+    confirmar = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚠️ Sí, salir y perder el intento",
+                              callback_data="m:salir_si")],
+        [InlineKeyboardButton(text="✖️ No, seguir el quiz",
+                              callback_data="m:salir_no")],
+    ])
+    await call.message.edit_reply_markup(reply_markup=confirmar)
+    await call.answer(
+        f"Llevas {respondidas} de {total}. Si sales, este intento se pierde y "
+        "tendrás que empezar desde la pregunta 1.",
+        show_alert=True)
+
+
+@router.callback_query(F.data == "m:salir_no")
+async def cb_salir_no(call: CallbackQuery, state: FSMContext):
+    """Devuelve el teclado que estaba antes de la confirmación."""
+    datos = await state.get_data()
+
+    if datos.get("fase") == "feedback":
+        teclado = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Siguiente ➡️", callback_data="m:sig")],
+            _fila_salir(),
+        ])
+    else:
+        n = datos.get("n_opciones", 4)
+        teclado = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=LETRAS[k], callback_data=f"m:r:{k}")
+             for k in range(n)],
+            _fila_salir(),
+        ])
+
+    await call.message.edit_reply_markup(reply_markup=teclado)
+    await call.answer()
+
+
+@router.callback_query(F.data == "m:salir_si")
+async def cb_salir_si(call: CallbackQuery, state: FSMContext):
+    """Cierra el intento como no completado y registra dónde se cayó.
+
+    `respondidas` es el dato que permite el análisis de punto de abandono:
+    sin él solo se sabe que no terminó, no en qué pregunta se perdió.
+    """
+    datos = await state.get_data()
+    session_id = datos.get("session_id")
+    respondidas, total = datos.get("indice", 0), len(datos.get("ids") or [])
+
+    async with SessionLocal() as s:
+        est = await _estudiante(s, call.from_user.id)
+        sesion = await s.get(StudySession, session_id) if session_id else None
+
+        if sesion is not None and sesion.finalizada_en is None:
+            ahora = datetime.now(timezone.utc)
+            sesion.finalizada_en = ahora
+            sesion.duracion_seg = max(
+                0.0, (ahora - sesion.iniciada_en).total_seconds())
+            sesion.completada = False
+            s.add(Event(student_id=sesion.student_id, session_id=sesion.id,
+                        ciclo=1, tipo="quiz_abandonado",
+                        payload={"capsule_id": sesion.capsule_id,
+                                 "respondidas": respondidas, "total": total,
+                                 "duracion_seg": round(sesion.duracion_seg, 1)}))
+            await s.commit()
+
+        teclado = await teclado_principal(s, est.id) if est else None
+
+    await limpiar_estado(state)
+
+    try:
+        await call.message.delete()
+    except Exception:                                # noqa: BLE001
+        logger.debug("No se pudo borrar la pregunta al salir", exc_info=True)
+
+    await call.message.answer(
+        f"Saliste en la pregunta <b>{respondidas + 1} de {total}</b>. "
+        "La cápsula quedó sin terminar.\n\n"
+        "Puedes volver a hacerla desde 📚 Estudiar, empezando desde la primera "
+        "pregunta.",
+        reply_markup=teclado)
+    await call.answer()
 
 
 async def _cerrar_quiz(call: CallbackQuery, state: FSMContext, previo: str):
@@ -376,6 +485,6 @@ async def bloquear_durante_quiz(message: Message, state: FSMContext):
     if not datos.get("ids"):
         raise SkipHandler       # sin quiz activo: que lo atiendan los demás
     await message.delete()
-    aviso = await message.answer("Termina el quiz antes de salir.")
+    aviso = await message.answer("Para salir usa el botón ⏸️ Salir del quiz.")
     await asyncio.sleep(3)
     await aviso.delete()
