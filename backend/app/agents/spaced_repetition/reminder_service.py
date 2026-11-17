@@ -167,13 +167,12 @@ async def enviar_pendientes(bot: Bot, s: AsyncSession) -> int:
                    f"Tienes <b>{n}</b> {plural}.\n"
                    f"Repasar ahora consolida lo que ya estudiaste.")
 
-        # Con una sola cápsula se entra directo; con varias, a la lista.
-        if n == 1:
-            destino = f"m:c:{pendientes[0][1].capsule_id}"
-            etiqueta = "📖 Repasar ahora"
-        else:
-            destino = "m:repasos"
-            etiqueta = f"📋 Ver mis {n} repasos"
+        # Siempre a la lista, también con una sola cápsula. El botón "m:c:"
+        # abre la cápsula reescribiendo ESTE mensaje, que puede ser de hace
+        # horas: el contenido aparecería arriba, fuera de la vista del
+        # estudiante. La lista llega como mensaje nuevo, al final del chat.
+        destino = "m:repasos"
+        etiqueta = "📋 Ver mi repaso" if n == 1 else f"📋 Ver mis {n} repasos"
 
         teclado = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text=etiqueta, callback_data=destino)

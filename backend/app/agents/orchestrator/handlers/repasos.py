@@ -134,4 +134,12 @@ async def cb_repasos(call: CallbackQuery, state: FSMContext):
     """Entrada desde el recordatorio agrupado."""
     await limpiar_seccion(call.message, state)
     await cmd_repasos(call.message, state, tg_id=call.from_user.id)
+
+    # El aviso ya cumplió: se le quita el botón para que no quede pulsable
+    # arriba cuando el estudiante siga usando el bot.
+    try:
+        await call.message.edit_reply_markup(reply_markup=None)
+    except Exception:                                # noqa: BLE001
+        pass
+
     await call.answer()
