@@ -372,6 +372,7 @@ function Celda({ c }: { c: CeldaMapa | undefined }) {
 function MapaCurso({ temas, estudiantes }: {
   temas: DominioTema[]; estudiantes: ProgresoEstudiante[];
 }) {
+  const [unidad, setUnidad] = useState<number | null>(null);   // null = todas
   if (temas.length === 0 || estudiantes.length === 0) {
     return (
       <div className="mt-5 rounded-xl border border-dashed border-[#1a1830]/15 py-12 text-center">
@@ -381,6 +382,24 @@ function MapaCurso({ temas, estudiantes }: {
       </div>
     );
   }
+
+  /* Columnas por unidad. Ordenadas por Topic.orden salían U1, U2, U4, U3, U1…
+    y había que ir leyendo cada etiqueta; por unidad, el avance se lee como
+    una diagonal y los huecos saltan solos. */
+  const ordenadas = [...temas].sort((a, b) => (a.unidad ?? 99) - (b.unidad ?? 99));
+
+  const unidades = [...new Set(
+    ordenadas.map((t) => t.unidad).filter((u): u is number => u !== null),
+  )].sort((a, b) => a - b);
+
+  const columnas = unidad === null
+    ? ordenadas
+    : ordenadas.filter((t) => t.unidad === unidad);
+
+  const filtros: { clave: number | null; texto: string }[] = [
+    { clave: null, texto: "Todas" },
+    ...unidades.map((u) => ({ clave: u, texto: `U${u}` })),
+  ];
 
   /* Los que menos avanzaron, arriba: el que no ha entrado es el que urge ver.
      A igual avance, primero el que menos ha respondido. */
@@ -398,84 +417,116 @@ function MapaCurso({ temas, estudiantes }: {
   ];
 
   return (
-    <div className="mt-5 overflow-hidden rounded-xl border border-[#1a1830]/10 bg-white">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr>
-              <th className="sticky left-0 z-10 bg-white px-5" />
-              {temas.map((t) => (
-                <th key={t.topic_id} className="h-[180px] px-1 align-bottom">
-                  <div className="flex h-full flex-col items-center justify-end gap-2.5">
-                    <span className="whitespace-nowrap text-[12.5px] text-[#1a1830] [writing-mode:vertical-rl] rotate-180">
-                      {t.nombre}
-                    </span>
-                    <span className="font-mono text-[10px] font-semibold"
-                          style={{ color: colorUnidad(t.unidad) }}>
-                      U{t.unidad ?? "—"}
-                    </span>
-                    <span className="h-[3px] w-8 rounded-full"
-                          style={{ backgroundColor: colorUnidad(t.unidad) }} />
-                  </div>
+    <>
+      {unidades.length > 1 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#a5a2b8]">
+            Unidad
+          </span>
+          {filtros.map((f) => (
+            <button
+              key={String(f.clave)}
+              onClick={() => setUnidad(f.clave)}
+              className={
+                "rounded-md px-2.5 py-1 font-mono text-[10.5px] uppercase tracking-[0.12em] transition " +
+                (unidad === f.clave
+                  ? "bg-[#1a1830] text-white"
+                  : "text-[#6b6788] hover:bg-[#1a1830]/5 hover:text-[#1a1830]")
+              }
+            >
+              {f.texto}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4 overflow-hidden rounded-xl border border-[#1a1830]/10 bg-white">
+        <div className="max-h-[34rem] overflow-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr>
+                {/* La esquina es pegajosa en los dos ejes: es la única celda
+                    que se cruza con la cabecera y con la columna del código. */}
+                <th className="sticky left-0 top-0 z-30 bg-white px-5" />
+                {columnas.map((t) => (
+                  <th key={t.topic_id}
+                      className="sticky top-0 z-20 h-[148px] bg-white px-1 align-bottom">
+                    <div className="flex h-full flex-col items-center justify-end gap-2 pb-1">
+                      <span className="whitespace-nowrap text-[10.5px] text-[#6b6788] [writing-mode:vertical-rl] rotate-180">
+                        {t.nombre}
+                      </span>
+                      <span className="font-mono text-[9px] font-semibold"
+                            style={{ color: colorUnidad(t.unidad) }}>
+                        U{t.unidad ?? "—"}
+                      </span>
+                      <span className="h-[3px] w-8 rounded-full"
+                            style={{ backgroundColor: colorUnidad(t.unidad) }} />
+                    </div>
+                  </th>
+                ))}
+                <th className="sticky top-0 z-20 bg-white px-5 pb-3 align-bottom">
+                  <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-[#a5a2b8]">
+                    Avance
+                  </span>
                 </th>
-              ))}
-              <th className="px-5 pb-3 align-bottom">
-                <span className="font-mono text-[9.5px] uppercase tracking-[0.14em] text-[#a5a2b8]">
-                  Avance
-                </span>
-              </th>
-            </tr>
-          </thead>
+              </tr>
+            </thead>
 
-          <tbody>
-            {filas.map((e) => {
-              const porTema = new Map(e.celdas.map((c) => [c.topic_id, c]));
-              const inactivo = e.respuestas === 0;
-              return (
-                <tr key={e.codigo_anonimo} className="transition hover:bg-[#faf8f5]">
-                  <td className="sticky left-0 z-10 bg-white px-5 py-1.5 font-mono text-[12px] whitespace-nowrap"
-                      style={{ color: inactivo ? ROJO : TINTA }}>
-                    {e.codigo_anonimo}
-                  </td>
-                  {temas.map((t) => (
-                    <td key={t.topic_id} className="px-1 py-1.5">
-                      <Celda c={porTema.get(t.topic_id)} />
+            <tbody>
+              {filas.map((e) => {
+                // El panel y la API se despliegan por separado: mientras una
+                // va por delante de la otra, `celdas` puede no venir.
+                const porTema = new Map((e.celdas ?? []).map((c) => [c.topic_id, c]));
+                const inactivo = e.respuestas === 0;
+                return (
+                  <tr key={e.codigo_anonimo} className="transition hover:bg-[#faf8f5]">
+                    <td className="sticky left-0 z-10 whitespace-nowrap bg-white px-5 py-1.5 font-mono text-[12px]"
+                        style={{ color: inactivo ? ROJO : TINTA }}>
+                      {e.codigo_anonimo}
                     </td>
-                  ))}
-                  <td className="px-5 py-1.5 font-mono text-[12px] text-[#6b6788]">
-                    {e.temas_completados}/{e.total_temas}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
+                    {columnas.map((t) => (
+                      <td key={t.topic_id} className="px-1 py-1.5">
+                        <Celda c={porTema.get(t.topic_id)} />
+                      </td>
+                    ))}
+                    <td className="px-5 py-1.5 font-mono text-[12px] text-[#6b6788]">
+                      {e.temas_completados}/{e.total_temas}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
 
-          <tfoot>
-            <tr className="border-t border-[#1a1830]/10">
-              <td className="sticky left-0 z-10 bg-white px-5 py-4 text-[13px] font-medium text-[#1a1830]">
-                Promedio
-              </td>
-              {temas.map((t) => (
-                <td key={t.topic_id} className="px-1 py-4 text-center font-mono text-[13px]"
-                    style={{ color: colorDominio(t.dominio) }}>
-                  {pct(t.dominio)}
+            <tfoot>
+              {/* El promedio se queda abajo mientras se recorren las filas:
+                  es la lectura que convierte el mapa en una decisión. */}
+              <tr className="sticky bottom-0 z-20 bg-white">
+                <td className="sticky left-0 z-30 border-t border-[#1a1830]/10 bg-white px-5 py-4 text-[13px] font-medium text-[#1a1830]">
+                  Promedio
                 </td>
-              ))}
-              <td />
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+                {columnas.map((t) => (
+                  <td key={t.topic_id}
+                      className="border-t border-[#1a1830]/10 bg-white px-1 py-4 text-center font-mono text-[13px]"
+                      style={{ color: colorDominio(t.dominio) }}>
+                    {pct(t.dominio)}
+                  </td>
+                ))}
+                <td className="border-t border-[#1a1830]/10 bg-white" />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
 
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-[#1a1830]/10 px-5 py-4">
-        {leyenda.map((l) => (
-          <div key={l.etiqueta} className="flex items-center gap-2">
-            <span className="h-4 w-7 rounded-[5px]" style={l.estilo} />
-            <span className="text-[12px] text-[#6b6788]">{l.etiqueta}</span>
-          </div>
-        ))}
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-[#1a1830]/10 px-5 py-4">
+          {leyenda.map((l) => (
+            <div key={l.etiqueta} className="flex items-center gap-2">
+              <span className="h-4 w-7 rounded-[5px]" style={l.estilo} />
+              <span className="text-[12px] text-[#6b6788]">{l.etiqueta}</span>
+            </div>
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -894,13 +945,6 @@ export default function PaginaResumen() {
           </section>
 
           <Seccion
-            titulo="Mapa del curso"
-            nota="Una fila por estudiante, una columna por tema. Una columna roja es un tema que se le atraganta al grupo; una fila gris, alguien que no ha entrado. Arriba van los que menos han avanzado."
-          >
-            <MapaCurso temas={datos.dominio_por_tema} estudiantes={datos.estudiantes} />
-          </Seccion>
-
-          <Seccion
             titulo="Embudo de adopción"
             nota="Cada escalón se calcula sobre el anterior. La diferencia de altura muestra dónde se pierde gente."
           >
@@ -920,6 +964,13 @@ export default function PaginaResumen() {
             <div className="mt-5">
               <SerieRetorno dias={datos.embudo.retorno} />
             </div>
+          </Seccion>
+
+          <Seccion
+            titulo="Mapa del curso"
+            nota="Una fila por estudiante, una columna por tema. Una columna roja es un tema que se le atraganta al grupo; una fila gris, alguien que no ha entrado. Arriba van los que menos han avanzado."
+          >
+            <MapaCurso temas={datos.dominio_por_tema} estudiantes={datos.estudiantes} />
           </Seccion>
 
           <Seccion
