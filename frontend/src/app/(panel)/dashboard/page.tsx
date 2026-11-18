@@ -968,7 +968,7 @@ export default function PaginaResumen() {
 
           <Seccion
             titulo="Mapa del curso"
-            nota="Una fila por estudiante, una columna por tema. Una columna roja es un tema que se le atraganta al grupo; una fila gris, alguien que no ha entrado. Arriba van los que menos han avanzado."
+            nota="Cada fila es un estudiante y cada columna un tema. El número es su nivel de dominio. Una columna entera en rojo significa que ese tema le costó a todo el curso. Una fila vacía, que ese estudiante aún no ha empezado. Primero aparecen los que menos han avanzado."
           >
             <MapaCurso temas={datos.dominio_por_tema} estudiantes={datos.estudiantes} />
           </Seccion>
