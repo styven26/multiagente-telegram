@@ -479,66 +479,6 @@ function MapaCurso({ temas, estudiantes }: {
   );
 }
 
-/* ------------------------------------------------------------- por tema */
-
-function BarrasTema({ temas }: { temas: DominioTema[] }) {
-  if (temas.length === 0) {
-    return (
-      <div className="mt-5 rounded-xl border border-dashed border-[#1a1830]/15 py-12 text-center">
-        <p className="text-[14px] text-[#8e8ba5]">
-          Sin respuestas registradas todavía.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-5 overflow-hidden rounded-xl border border-[#1a1830]/10 bg-white">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[34rem] text-left">
-
-          <thead>
-            <tr className="border-b border-[#1a1830]/10">
-              {["Tema", "Nivel de dominio", "Promedio", "Respuestas"].map((h) => (
-                <th key={h}
-                    className="px-5 py-3 font-mono text-[10px] font-normal uppercase tracking-[0.14em] text-[#a5a2b8]">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#1a1830]/[0.07]">
-            {temas.map((t) => {
-              const color = colorDominio(t.dominio);
-              return (
-                <tr key={t.topic_id} className="transition hover:bg-[#faf8f5]">
-                  <td className="max-w-[15rem] truncate px-5 py-3.5 text-[14px] text-[#1a1830]"
-                      title={t.nombre}>
-                    {t.nombre}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="h-2 w-full max-w-[18rem] overflow-hidden rounded-full bg-[#1a1830]/[0.07]">
-                      <div className="h-full rounded-full"
-                          style={{ width: pct(t.dominio), backgroundColor: color,
-                                    transition: "width 700ms ease" }} />
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 font-mono text-[12.5px]" style={{ color }}>
-                    {pct(t.dominio)}
-                  </td>
-                  <td className="px-5 py-3.5 font-mono text-[12px] text-[#a5a2b8]">
-                    {t.respuestas}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
 /* ----------------------------------------------- ficha de un estudiante */
 
 function Dato({ etiqueta, valor, color }: {
@@ -980,13 +920,6 @@ export default function PaginaResumen() {
             <div className="mt-5">
               <SerieRetorno dias={datos.embudo.retorno} />
             </div>
-          </Seccion>
-
-          <Seccion
-            titulo="Dominio por tema · promedio del grupo"
-            nota={`Media entre los estudiantes que respondieron cada tema. Verde sobre ${pct(DOMINIO_ALTO)}, ámbar sobre ${pct(DOMINIO_MEDIO)}, rojo por debajo. El detalle por persona está en la tabla de abajo.`}
-          >
-            <BarrasTema temas={datos.dominio_por_tema} />
           </Seccion>
 
           <Seccion
