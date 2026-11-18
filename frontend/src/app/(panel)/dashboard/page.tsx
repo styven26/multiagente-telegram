@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 import {
+  detalleEstudiante,
   resumenDocente,
+  type CeldaMapa,
+  type DetalleEstudiante,
   type DominioTema,
   type ProgresoEstudiante,
   type ResumenDocente,
@@ -24,6 +27,18 @@ const TENUE = "#a5a2b8";
 const DOMINIO_ALTO = 0.8;
 const DOMINIO_MEDIO = 0.5;
 
+/** Color por unidad. Sirve de código visual compartido entre mapa y ficha. */
+const COLOR_UNIDAD: Record<number, string> = {
+  1: AMBAR,
+  2: VERDE,
+  3: AZUL,
+  4: TINTA,
+};
+
+function colorUnidad(u: number | null) {
+  return u ? COLOR_UNIDAD[u] ?? MEDIO : MEDIO;
+}
+
 function pct(n: number) {
   return `${Math.round(n * 100)}%`;
 }
@@ -43,6 +58,21 @@ function fecha(iso: string) {
     day: "2-digit",
     month: "short",
   });
+}
+
+function fechaCorta(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("es-EC", {
+    day: "2-digit",
+    month: "short",
+  });
+}
+
+function duracion(seg: number) {
+  if (!seg || seg < 60) return "menos de 1 min";
+  const h = Math.floor(seg / 3600);
+  const m = Math.round((seg % 3600) / 60);
+  return h ? `${h} h ${m} min` : `${m} min`;
 }
 
 /* ------------------------------------------------------- tarjetas de KPI */
@@ -200,7 +230,7 @@ function SerieRetorno({ dias }: { dias: RetornoDia[] }) {
     );
   }
 
-/* El ancho del viewBox crece con los días para que el SVG se dibuje a
+  /* El ancho del viewBox crece con los días para que el SVG se dibuje a
      escala 1:1 con su minWidth. Con un ancho fijo, estirarlo agrandaba
      también la altura y amontonaba las fechas unas sobre otras. */
   const POR_DIA = 58;
@@ -299,7 +329,157 @@ function SerieRetorno({ dias }: { dias: RetornoDia[] }) {
   );
 }
 
-/* --------------------------------------------------------------- por tema */
+/* ---------------------------------------------------------- mapa del curso */
+
+/** Una casilla: relleno = tema terminado, contorno = empezado sin terminar. */
+function Celda({ c }: { c: CeldaMapa | undefined }) {
+  const vacia = !c || (c.dominio === null && c.respuestas === 0);
+
+  if (vacia) {
+    return (
+      <div className="mx-auto h-9 w-14 rounded-md bg-[#1a1830]/[0.07]"
+           title="Sin iniciar" />
+    );
+  }
+
+  const nivel = c!.dominio;
+  const col = colorDominio(nivel ?? 0);
+  const terminado = c!.completadas > 0;
+
+  return (
+    <div
+      className="mx-auto flex h-9 w-14 items-center justify-center rounded-md font-mono text-[12px]"
+      style={terminado
+        ? { backgroundColor: col, color: "#fff" }
+        : { border: `2px solid ${col}`, color: col }}
+      title={terminado
+        ? `Dominio ${pct(nivel ?? 0)} · ${c!.respuestas} respuestas`
+        : `Empezado sin terminar · ${c!.respuestas} respuestas`}
+    >
+      {nivel === null ? "·" : Math.round(nivel * 100)}
+    </div>
+  );
+}
+
+/**
+ * Mapa de calor del curso: una fila por estudiante, una columna por tema.
+ *
+ * Es la vista que responde "dónde se traba el grupo" sin leer un solo número:
+ * una columna roja señala un tema mal calibrado, y una fila gris completa es
+ * un estudiante que no ha entrado. Con una tabla de texto, las dos cosas se
+ * pierden entre las celdas.
+ */
+function MapaCurso({ temas, estudiantes }: {
+  temas: DominioTema[]; estudiantes: ProgresoEstudiante[];
+}) {
+  if (temas.length === 0 || estudiantes.length === 0) {
+    return (
+      <div className="mt-5 rounded-xl border border-dashed border-[#1a1830]/15 py-12 text-center">
+        <p className="text-[14px] text-[#8e8ba5]">
+          El mapa aparece cuando haya temas activos y estudiantes registrados.
+        </p>
+      </div>
+    );
+  }
+
+  /* Los que menos avanzaron, arriba: el que no ha entrado es el que urge ver.
+     A igual avance, primero el que menos ha respondido. */
+  const filas = [...estudiantes].sort(
+    (a, b) =>
+      a.temas_completados - b.temas_completados || a.respuestas - b.respuestas,
+  );
+
+  const leyenda = [
+    { etiqueta: "80% o más", estilo: { backgroundColor: VERDE } },
+    { etiqueta: "50 a 79%", estilo: { backgroundColor: AMBAR } },
+    { etiqueta: "menos de 50%", estilo: { backgroundColor: ROJO } },
+    { etiqueta: "empezado, sin terminar", estilo: { border: `2px solid ${MEDIO}` } },
+    { etiqueta: "sin iniciar", estilo: { backgroundColor: "rgba(26,24,48,0.07)" } },
+  ];
+
+  return (
+    <div className="mt-5 overflow-hidden rounded-xl border border-[#1a1830]/10 bg-white">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-10 bg-white px-5" />
+              {temas.map((t) => (
+                <th key={t.topic_id} className="h-[180px] px-1 align-bottom">
+                  <div className="flex h-full flex-col items-center justify-end gap-2.5">
+                    <span className="whitespace-nowrap text-[12.5px] text-[#1a1830] [writing-mode:vertical-rl] rotate-180">
+                      {t.nombre}
+                    </span>
+                    <span className="font-mono text-[10px] font-semibold"
+                          style={{ color: colorUnidad(t.unidad) }}>
+                      U{t.unidad ?? "—"}
+                    </span>
+                    <span className="h-[3px] w-8 rounded-full"
+                          style={{ backgroundColor: colorUnidad(t.unidad) }} />
+                  </div>
+                </th>
+              ))}
+              <th className="px-5 pb-3 align-bottom">
+                <span className="font-mono text-[9.5px] uppercase tracking-[0.14em] text-[#a5a2b8]">
+                  Avance
+                </span>
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {filas.map((e) => {
+              const porTema = new Map(e.celdas.map((c) => [c.topic_id, c]));
+              const inactivo = e.respuestas === 0;
+              return (
+                <tr key={e.codigo_anonimo} className="transition hover:bg-[#faf8f5]">
+                  <td className="sticky left-0 z-10 bg-white px-5 py-1.5 font-mono text-[12px] whitespace-nowrap"
+                      style={{ color: inactivo ? ROJO : TINTA }}>
+                    {e.codigo_anonimo}
+                  </td>
+                  {temas.map((t) => (
+                    <td key={t.topic_id} className="px-1 py-1.5">
+                      <Celda c={porTema.get(t.topic_id)} />
+                    </td>
+                  ))}
+                  <td className="px-5 py-1.5 font-mono text-[12px] text-[#6b6788]">
+                    {e.temas_completados}/{e.total_temas}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+
+          <tfoot>
+            <tr className="border-t border-[#1a1830]/10">
+              <td className="sticky left-0 z-10 bg-white px-5 py-4 text-[13px] font-medium text-[#1a1830]">
+                Promedio
+              </td>
+              {temas.map((t) => (
+                <td key={t.topic_id} className="px-1 py-4 text-center font-mono text-[13px]"
+                    style={{ color: colorDominio(t.dominio) }}>
+                  {pct(t.dominio)}
+                </td>
+              ))}
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-[#1a1830]/10 px-5 py-4">
+        {leyenda.map((l) => (
+          <div key={l.etiqueta} className="flex items-center gap-2">
+            <span className="h-4 w-7 rounded-[5px]" style={l.estilo} />
+            <span className="text-[12px] text-[#6b6788]">{l.etiqueta}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- por tema */
 
 function BarrasTema({ temas }: { temas: DominioTema[] }) {
   if (temas.length === 0) {
@@ -359,10 +539,160 @@ function BarrasTema({ temas }: { temas: DominioTema[] }) {
   );
 }
 
+/* ----------------------------------------------- ficha de un estudiante */
+
+function Dato({ etiqueta, valor, color }: {
+  etiqueta: string; valor: string; color?: string;
+}) {
+  return (
+    <div>
+      <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-[#a5a2b8]">
+        {etiqueta}
+      </p>
+      <p className="mt-1.5 text-[14px] font-medium" style={{ color: color ?? TINTA }}>
+        {valor}
+      </p>
+    </div>
+  );
+}
+
+function FichaEstudiante({ d }: { d: DetalleEstudiante }) {
+  const ahora = Date.now();
+
+  return (
+    <div className="border-l-[3px] bg-[#faf8f5] px-6 py-5" style={{ borderColor: AMBAR }}>
+      <div className="flex flex-wrap gap-x-10 gap-y-4">
+        <Dato etiqueta="Registrado" valor={fechaCorta(d.registrado_en)} />
+        <Dato etiqueta="Última actividad"
+              valor={d.ultima_actividad ? fechaCorta(d.ultima_actividad) : "Nunca"}
+              color={d.ultima_actividad ? undefined : ROJO} />
+        <Dato etiqueta="Tiempo de estudio" valor={duracion(d.tiempo_estudio_seg)} />
+        <Dato etiqueta="Sesiones"
+              valor={`${d.sesiones_iniciadas} · ${d.sesiones_completadas} hechas · ${d.sesiones_abandonadas} dejadas`} />
+        <Dato etiqueta="Tasa de finalización"
+              valor={d.sesiones_iniciadas
+                ? pct(d.sesiones_completadas / d.sesiones_iniciadas)
+                : "—"} />
+        <Dato etiqueta="Repasos"
+              valor={d.repasos_vencidos
+                ? `${d.repasos_vencidos} vencidos`
+                : d.proximo_repaso
+                  ? `siguiente ${fechaCorta(d.proximo_repaso)}`
+                  : "sin programar"}
+              color={d.repasos_vencidos ? ROJO : undefined} />
+      </div>
+
+      <div className="mt-6 overflow-x-auto">
+        <table className="w-full min-w-[46rem] text-left">
+          <thead>
+            <tr className="border-b border-[#1a1830]/10">
+              {["Unidad", "Tema", "Dominio", "Resp.", "Aciertos",
+                "Cápsulas", "Últ. repaso", "Próximo"].map((h) => (
+                <th key={h}
+                    className="px-3 py-2 font-mono text-[9px] font-normal uppercase tracking-[0.14em] text-[#a5a2b8]">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#1a1830]/[0.05]">
+            {d.temas.map((t) => {
+              const vencido = !!t.proximo_repaso
+                && new Date(t.proximo_repaso).getTime() <= ahora;
+              const hecho = t.capsulas_completadas > 0;
+              return (
+                <tr key={t.topic_id}>
+                  <td className="px-3 py-2.5">
+                    <span className="flex h-7 w-9 items-center justify-center rounded-md font-mono text-[11px] text-white"
+                          style={{ backgroundColor: colorUnidad(t.unidad) }}>
+                      {t.unidad ?? "—"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-[13.5px] text-[#1a1830]">{t.nombre}</td>
+                  <td className="px-3 py-2.5">
+                    {t.dominio === null ? (
+                      <span className="text-[13px] text-[#a5a2b8]">—</span>
+                    ) : (
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[#1a1830]/[0.07]">
+                          <div className="h-full rounded-full"
+                               style={{ width: pct(t.dominio),
+                                        backgroundColor: colorDominio(t.dominio) }} />
+                        </div>
+                        <span className="font-mono text-[12px]"
+                              style={{ color: colorDominio(t.dominio) }}>
+                          {pct(t.dominio)}
+                        </span>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-3 py-2.5 font-mono text-[12.5px] text-[#6b6788]">
+                    {t.respuestas}
+                  </td>
+                  <td className="px-3 py-2.5 font-mono text-[12.5px] text-[#6b6788]">
+                    {t.aciertos}
+                  </td>
+                  <td className="px-3 py-2.5 font-mono text-[12.5px]"
+                      style={{ color: hecho ? MEDIO : TENUE }}>
+                    {t.capsulas_completadas} de {t.capsulas_total}
+                  </td>
+                  <td className="px-3 py-2.5 text-[13px] text-[#6b6788]">
+                    {fechaCorta(t.ultimo_repaso)}
+                  </td>
+                  <td className="px-3 py-2.5 text-[13px]"
+                      style={{ color: vencido ? ROJO : MEDIO,
+                               fontWeight: vencido ? 500 : 400 }}>
+                    {t.proximo_repaso
+                      ? (vencido ? "vencido" : fechaCorta(t.proximo_repaso))
+                      : "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="mt-4 text-[12px] text-[#a5a2b8]">
+        Un dominio en «—» significa que todavía no hay evidencia, no que esté en
+        cero: son cosas distintas y conviene no confundirlas.
+      </p>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------- tabla individual */
 
+type Orden = "actividad" | "aciertos" | "avance" | "sin_iniciar";
+
 function TablaEstudiantes({ filas }: { filas: ProgresoEstudiante[] }) {
-  const [orden, setOrden] = useState<"actividad" | "aciertos" | "avance">("actividad");
+  const [orden, setOrden] = useState<Orden>("actividad");
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const [detalles, setDetalles] = useState<Record<string, DetalleEstudiante>>({});
+  const [cargando, setCargando] = useState<string | null>(null);
+  const [fallo, setFallo] = useState<string | null>(null);
+
+  /* El detalle se pide una vez por estudiante y se guarda: volver a abrir la
+     misma fila no debería costar otro viaje al servidor. */
+  async function alternar(codigo: string) {
+    if (abierta === codigo) {
+      setAbierta(null);
+      return;
+    }
+    setAbierta(codigo);
+    setFallo(null);
+    if (detalles[codigo]) return;
+
+    setCargando(codigo);
+    try {
+      const d = await detalleEstudiante(codigo);
+      setDetalles((previos) => ({ ...previos, [codigo]: d }));
+    } catch (e) {
+      setFallo(e instanceof Error ? e.message : "No se pudo cargar el detalle.");
+    } finally {
+      setCargando(null);
+    }
+  }
 
   if (filas.length === 0) {
     return (
@@ -385,6 +715,9 @@ function TablaEstudiantes({ filas }: { filas: ProgresoEstudiante[] }) {
       const pb = b.total_temas ? b.temas_completados / b.total_temas : 0;
       return pb - pa;
     }
+    if (orden === "sin_iniciar") {
+      return a.respuestas - b.respuestas;
+    }
     return (
       new Date(b.ultima_actividad ?? 0).getTime() -
       new Date(a.ultima_actividad ?? 0).getTime()
@@ -395,6 +728,7 @@ function TablaEstudiantes({ filas }: { filas: ProgresoEstudiante[] }) {
     { clave: "actividad", texto: "Actividad reciente" },
     { clave: "avance", texto: "Avance" },
     { clave: "aciertos", texto: "Aciertos" },
+    { clave: "sin_iniciar", texto: "Sin iniciar" },
   ] as const;
 
   return (
@@ -419,63 +753,96 @@ function TablaEstudiantes({ filas }: { filas: ProgresoEstudiante[] }) {
         ))}
       </div>
 
-      <div className="mt-4 max-h-[26rem] overflow-auto rounded-xl border border-[#1a1830]/10 bg-white">
-        <table className="w-full min-w-[34rem] text-left">
-          <thead className="sticky top-0 z-10 bg-white">
-            <tr className="border-b border-[#1a1830]/10">
-              {["Código", "Avance por temas", "Aciertos", "Última actividad"].map((h) => (
-                <th key={h}
-                    className="bg-white px-5 py-3 font-mono text-[10px] font-normal uppercase tracking-[0.14em] text-[#a5a2b8]">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#1a1830]/[0.07]">
-            {ordenadas.map((e) => {
-              const avance = e.total_temas ? e.temas_completados / e.total_temas : 0;
-              const acierto = e.respuestas ? e.aciertos / e.respuestas : null;
-              return (
-                <tr key={e.codigo_anonimo} className="transition hover:bg-[#faf8f5]">
-                  <td className="px-5 py-3.5 font-mono text-[12.5px] text-[#1a1830]">
-                    {e.codigo_anonimo}
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-[#1a1830]/[0.07]">
-                        <div className="h-full rounded-full"
-                             style={{ width: pct(avance), backgroundColor: AMBAR }} />
-                      </div>
-                      <span className="font-mono text-[12px] text-[#6b6788]">
-                        {e.temas_completados}/{e.total_temas}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 font-mono text-[12.5px]">
-                    {acierto === null ? (
-                      <span className="text-[#a5a2b8]">Sin respuestas</span>
-                    ) : (
-                      <>
-                        <span style={{ color: colorDominio(acierto) }}>{pct(acierto)}</span>
-                        <span className="ml-2 text-[11px] text-[#a5a2b8]">
-                          ({e.respuestas})
-                        </span>
-                      </>
+      {fallo && (
+        <p className="mt-3 text-[13px] text-[#c0392b]">{fallo}</p>
+      )}
+
+      <div className="mt-4 overflow-hidden rounded-xl border border-[#1a1830]/10 bg-white">
+        <div className="max-h-[40rem] overflow-auto">
+          <table className="w-full min-w-[52rem] text-left">
+            <thead className="sticky top-0 z-20 bg-white">
+              <tr className="border-b border-[#1a1830]/10">
+                {["Código", "Avance por temas", "En qué va", "Aciertos",
+                  "Última actividad", ""].map((h) => (
+                  <th key={h}
+                      className="bg-white px-5 py-3 font-mono text-[10px] font-normal uppercase tracking-[0.14em] text-[#a5a2b8]">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#1a1830]/[0.07]">
+              {ordenadas.map((e) => {
+                const avance = e.total_temas ? e.temas_completados / e.total_temas : 0;
+                const acierto = e.respuestas ? e.aciertos / e.respuestas : null;
+                const activa = abierta === e.codigo_anonimo;
+                return (
+                  <Fragment key={e.codigo_anonimo}>
+                    <tr onClick={() => alternar(e.codigo_anonimo)}
+                        className={"cursor-pointer transition " +
+                          (activa ? "bg-[#faf8f5]" : "hover:bg-[#faf8f5]")}>
+                      <td className="px-5 py-3.5 font-mono text-[12.5px] text-[#1a1830]">
+                        {e.codigo_anonimo}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-[#1a1830]/[0.07]">
+                            <div className="h-full rounded-full"
+                                 style={{ width: pct(avance), backgroundColor: AMBAR }} />
+                          </div>
+                          <span className="font-mono text-[12px] text-[#6b6788]">
+                            {e.temas_completados}/{e.total_temas}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-[13.5px]">
+                        {e.tema_actual ? (
+                          <span className="text-[#1a1830]">
+                            <span className="font-mono text-[11.5px]"
+                                  style={{ color: colorUnidad(e.unidad_actual) }}>
+                              U{e.unidad_actual ?? "—"}
+                            </span>
+                            {" · "}
+                            {e.tema_actual}
+                          </span>
+                        ) : (
+                          <span className="text-[#a5a2b8]">— sin iniciar —</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 font-mono text-[12.5px]">
+                        {acierto === null ? (
+                          <span className="text-[#a5a2b8]">Sin respuestas</span>
+                        ) : (
+                          <>
+                            <span style={{ color: colorDominio(acierto) }}>{pct(acierto)}</span>
+                            <span className="ml-2 text-[11px] text-[#a5a2b8]">
+                              ({e.respuestas})
+                            </span>
+                          </>
+                        )}
+                      </td>
+                      <td className="px-5 py-3.5 text-[13px]"
+                          style={{ color: e.ultima_actividad ? MEDIO : ROJO }}>
+                        {e.ultima_actividad ? fechaCorta(e.ultima_actividad) : "Nunca"}
+                      </td>
+                      <td className="px-5 py-3.5 text-center text-[13px] text-[#a5a2b8]">
+                        {cargando === e.codigo_anonimo ? "…" : activa ? "▲" : "▼"}
+                      </td>
+                    </tr>
+
+                    {activa && detalles[e.codigo_anonimo] && (
+                      <tr>
+                        <td colSpan={6} className="p-0">
+                          <FichaEstudiante d={detalles[e.codigo_anonimo]} />
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                  <td className="px-5 py-3.5 text-[13px] text-[#6b6788]">
-                    {e.ultima_actividad
-                      ? new Date(e.ultima_actividad).toLocaleDateString("es-EC", {
-                          day: "2-digit",
-                          month: "short",
-                        })
-                      : "Nunca"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   );
@@ -587,6 +954,13 @@ export default function PaginaResumen() {
           </section>
 
           <Seccion
+            titulo="Mapa del curso"
+            nota="Una fila por estudiante, una columna por tema. Una columna roja es un tema que se le atraganta al grupo; una fila gris, alguien que no ha entrado. Arriba van los que menos han avanzado."
+          >
+            <MapaCurso temas={datos.dominio_por_tema} estudiantes={datos.estudiantes} />
+          </Seccion>
+
+          <Seccion
             titulo="Embudo de adopción"
             nota="Cada escalón se calcula sobre el anterior. La diferencia de altura muestra dónde se pierde gente."
           >
@@ -617,7 +991,7 @@ export default function PaginaResumen() {
 
           <Seccion
             titulo="Progreso individual"
-            nota="Una fila por estudiante. Usa el scroll cuando el grupo crezca."
+            nota="Una fila por estudiante. Toca una fila para ver su ficha completa: tiempo de estudio, sesiones, y el detalle tema por tema."
           >
             <TablaEstudiantes filas={datos.estudiantes} />
           </Seccion>

@@ -78,8 +78,18 @@ export async function listarTemas() {
 export interface DominioTema {
   topic_id: string;
   nombre: string;
+  unidad: number | null;
   dominio: number;      // 0..1
   respuestas: number;
+  capsulas: number;     // cápsulas activas del tema
+}
+
+/** Una casilla del mapa del curso: un estudiante en un tema. */
+export interface CeldaMapa {
+  topic_id: string;
+  dominio: number | null;   // null = sin evidencia; no es lo mismo que 0
+  respuestas: number;
+  completadas: number;      // cápsulas del tema ya terminadas
 }
 
 export interface ProgresoEstudiante {
@@ -89,6 +99,9 @@ export interface ProgresoEstudiante {
   aciertos: number;
   respuestas: number;
   ultima_actividad: string | null;
+  tema_actual: string | null;    // último tema con actividad
+  unidad_actual: number | null;
+  celdas: CeldaMapa[];
 }
 
 export interface RetornoDia {
@@ -279,4 +292,38 @@ export async function subirImagen(archivo: File): Promise<string> {
  *  pueda cargar. */
 export function urlImagen(ruta: string | null): string | null {
   return ruta ? `${API}${ruta}` : null;
+}
+
+export interface DetalleTema {
+  topic_id: string;
+  nombre: string;
+  unidad: number | null;
+  dominio: number | null;
+  respuestas: number;
+  aciertos: number;
+  capsulas_total: number;
+  capsulas_completadas: number;
+  ultimo_repaso: string | null;
+  proximo_repaso: string | null;
+}
+
+export interface DetalleEstudiante {
+  codigo_anonimo: string;
+  registrado_en: string;
+  ultima_actividad: string | null;
+  tiempo_estudio_seg: number;
+  sesiones_iniciadas: number;
+  sesiones_completadas: number;
+  sesiones_abandonadas: number;
+  repasos_vencidos: number;
+  proximo_repaso: string | null;
+  temas: DetalleTema[];
+}
+
+/** Ficha de un estudiante. Se pide al desplegar su fila, no en el resumen:
+ *  traerla para toda la cohorte en cada carga del panel lo volvería lento. */
+export async function detalleEstudiante(codigo: string) {
+  return pedir<DetalleEstudiante>(
+    `/api/teacher/metrics/student/${encodeURIComponent(codigo)}`,
+  );
 }

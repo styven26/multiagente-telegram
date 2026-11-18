@@ -14,7 +14,7 @@ from app.schemas.content import (
     QuestionCreate, QuestionOut, QuestionUpdate,
     TopicCreate, TopicOut, TopicUpdate,
 )
-from app.schemas.metrics import ResumenDocente
+from app.schemas.metrics import DetalleEstudiante, ResumenDocente
 from app.services import capsule_service, metrics, question_service, topic_service
 from app.services.patch import SIN_CAMBIO
 
@@ -184,6 +184,14 @@ async def resumen_docente(docente: Teacher = Depends(docente_actual),
                           s: AsyncSession = Depends(get_session)):
     return await metrics.resumen(s)
 
+@router.get("/metrics/student/{codigo}", response_model=DetalleEstudiante)
+async def detalle_estudiante(codigo: str,
+                             docente: Teacher = Depends(docente_actual),
+                             s: AsyncSession = Depends(get_session)):
+    try:
+        return await metrics.detalle_estudiante(s, codigo)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Estudiante no encontrado")
 
 CARPETA_SUBIDAS = Path("media/uploads")
 TIPOS_PERMITIDOS = {
