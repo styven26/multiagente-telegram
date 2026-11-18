@@ -450,9 +450,9 @@ function MapaCurso({ temas, estudiantes }: {
                 <th className="sticky left-0 top-0 z-30 bg-white px-5" />
                 {columnas.map((t) => (
                   <th key={t.topic_id}
-                      className="sticky top-0 z-20 h-[148px] bg-white px-1 align-bottom">
+                      className="sticky top-0 z-20 h-[140px] bg-white px-1 align-bottom">
                     <div className="flex h-full flex-col items-center justify-end gap-2 pb-1">
-                      <span className="whitespace-nowrap text-[10.5px] text-[#6b6788] [writing-mode:vertical-rl] rotate-180">
+                      <span className="whitespace-nowrap text-[9.5px] text-[#6b6788] [writing-mode:vertical-rl] rotate-180">
                         {t.nombre}
                       </span>
                       <span className="font-mono text-[9px] font-semibold"
