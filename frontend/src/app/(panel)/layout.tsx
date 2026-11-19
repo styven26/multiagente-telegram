@@ -13,6 +13,12 @@ const NAV = [
 
 const ICONO_SALIR = "M15 17l5-5-5-5M20 12H9M11 3H5a1 1 0 00-1 1v16a1 1 0 001 1h6";
 
+/** Inicial para el avatar. Un círculo con la letra pesa menos que una foto y
+ *  no obliga a pedirle una imagen a cada docente. */
+function inicial(nombre: string) {
+  return nombre.trim().charAt(0).toUpperCase() || "·";
+}
+
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const ruta = usePathname();
@@ -54,8 +60,11 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
     <div className="min-h-screen bg-[#faf8f5] md:flex">
       {/* Cabecera — solo móvil */}
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-[#1a1830]/10 bg-white px-4 py-3 md:hidden">
-        <Link href="/dashboard" className="font-mono text-[13px] tracking-[0.18em] text-[#1a1830]">
-          STI
+        <Link href="/dashboard" className="flex items-center gap-2">
+          <span className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-[#1a1830]">
+            <span className="h-[6px] w-[6px] rounded-full bg-[#e0a030]" />
+          </span>
+          <span className="font-mono text-[12px] tracking-[0.18em] text-[#1a1830]">STI</span>
         </Link>
         <div className="flex items-center gap-3">
           {docente && (
@@ -79,13 +88,15 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
       {/* Barra lateral — solo escritorio.
           Con solo iconos había que adivinar a qué pertenecía el bloque activo;
           el nombre al lado lo resuelve sin depender del tooltip. */}
-      <nav className="sticky top-0 hidden h-screen w-[212px] shrink-0 flex-col border-r border-[#1a1830]/10 bg-white px-3 py-6 md:flex">
-        <Link href="/dashboard"
-              className="mb-7 px-3 font-mono text-[12px] tracking-[0.15em] text-[#1a1830]">
-          STI
+      <nav className="sticky top-0 hidden h-screen w-[180px] shrink-0 flex-col border-r border-[#1a1830]/[0.08] bg-white px-3 py-6 md:flex">
+        <Link href="/dashboard" className="mb-8 flex items-center gap-2.5 px-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-[#1a1830]">
+            <span className="h-[7px] w-[7px] rounded-full bg-[#e0a030]" />
+          </span>
+          <span className="font-mono text-[12px] tracking-[0.15em] text-[#1a1830]">STI</span>
         </Link>
 
-        <ul className="flex flex-1 flex-col gap-1">
+        <ul className="flex flex-1 flex-col gap-0.5">
           {NAV.map((item) => {
             const act = activa(item.href);
             return (
@@ -94,17 +105,22 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
                   href={item.href}
                   aria-current={act ? "page" : undefined}
                   className={
-                    "relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] transition " +
+                    "group relative flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13px] transition-colors duration-150 " +
                     (act
-                      ? "bg-[#1a1830]/[0.06] font-medium text-[#1a1830]"
-                      : "text-[#6b6788] hover:bg-[#1a1830]/[0.04] hover:text-[#1a1830]")
+                      ? "bg-[#1a1830]/[0.055] font-medium text-[#1a1830]"
+                      : "text-[#6b6788] hover:bg-[#1a1830]/[0.035] hover:text-[#1a1830]")
                   }
                 >
-                  {act && (
-                    <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#e0a030]" />
-                  )}
-                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none"
-                       stroke={act ? "#e0a030" : "currentColor"} strokeWidth="1.7"
+                  {/* La barra crece desde el centro al activarse; en reposo
+                      mide cero y no deja hueco. */}
+                  <span
+                    className="absolute left-0 top-1/2 w-[3px] -translate-y-1/2 rounded-r-full bg-[#e0a030] transition-all duration-200"
+                    style={{ height: act ? 18 : 0, opacity: act ? 1 : 0 }}
+                  />
+                  <svg viewBox="0 0 24 24"
+                       className={"h-[17px] w-[17px] shrink-0 transition-colors duration-150 " +
+                         (act ? "text-[#e0a030]" : "text-[#a5a2b8] group-hover:text-[#6b6788]")}
+                       fill="none" stroke="currentColor" strokeWidth="1.7"
                        strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                     <path d={item.d} />
                   </svg>
@@ -116,21 +132,26 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
         </ul>
 
         {docente && (
-          <div className="mt-4 border-t border-[#1a1830]/10 px-3 pt-4">
-            <p className="truncate text-[13px] leading-tight text-[#1a1830]">
-              {docente.nombre}
-            </p>
-            <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-[#a5a2b8]">
-              {docente.rol}
-            </p>
+          <div className="flex items-center gap-2.5 border-t border-[#1a1830]/[0.08] px-2 pt-4">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1a1830]/[0.06] text-[12px] font-medium text-[#1a1830]">
+              {inicial(docente.nombre)}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[12.5px] leading-tight text-[#1a1830]">
+                {docente.nombre}
+              </p>
+              <p className="mt-0.5 font-mono text-[8.5px] uppercase tracking-[0.12em] text-[#a5a2b8]">
+                {docente.rol}
+              </p>
+            </div>
           </div>
         )}
 
         <button
           onClick={salir}
-          className="mt-2 flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] text-[#8e8ba5] transition hover:bg-[#c0392b]/[0.08] hover:text-[#c0392b]"
+          className="mt-1.5 flex items-center gap-3 rounded-[10px] px-3 py-2 text-[12.5px] text-[#a5a2b8] transition-colors duration-150 hover:bg-[#c0392b]/[0.07] hover:text-[#c0392b]"
         >
-          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none"
+          <svg viewBox="0 0 24 24" className="h-[16px] w-[16px] shrink-0" fill="none"
                stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"
                strokeLinejoin="round" aria-hidden>
             <path d={ICONO_SALIR} />
