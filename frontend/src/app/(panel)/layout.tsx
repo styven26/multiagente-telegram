@@ -76,43 +76,51 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
         </div>
       </header>
 
-      {/* Rail — solo escritorio */}
-      <nav className="sticky top-0 hidden h-screen w-[68px] shrink-0 flex-col items-center border-r border-[#1a1830]/10 bg-white py-6 md:flex">
-        <Link href="/dashboard" className="mb-6 font-mono text-[12px] tracking-[0.15em] text-[#1a1830]">
+      {/* Barra lateral — solo escritorio.
+          Con solo iconos había que adivinar a qué pertenecía el bloque activo;
+          el nombre al lado lo resuelve sin depender del tooltip. */}
+      <nav className="sticky top-0 hidden h-screen w-[212px] shrink-0 flex-col border-r border-[#1a1830]/10 bg-white px-3 py-6 md:flex">
+        <Link href="/dashboard"
+              className="mb-7 px-3 font-mono text-[12px] tracking-[0.15em] text-[#1a1830]">
           STI
         </Link>
 
-        <ul className="flex flex-1 flex-col gap-1.5">
-          {NAV.map((item) => (
-            <li key={item.href} className="relative">
-              {activa(item.href) && (
-                <span className="absolute -left-[13px] top-1/2 h-6 w-[2px] -translate-y-1/2 rounded-full bg-[#e0a030]" />
-              )}
-              <Link
-                href={item.href}
-                title={item.etiqueta}
-                aria-current={activa(item.href) ? "page" : undefined}
-                className={
-                  "flex h-11 w-11 items-center justify-center rounded-lg transition " +
-                  (activa(item.href)
-                    ? "bg-[#1a1830] text-white"
-                    : "text-[#8e8ba5] hover:bg-[#1a1830]/5 hover:text-[#1a1830]")
-                }
-              >
-                <svg viewBox="0 0 24 24" className="h-[19px] w-[19px]" fill="none"
-                     stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"
-                     strokeLinejoin="round" aria-hidden>
-                  <path d={item.d} />
-                </svg>
-              </Link>
-            </li>
-          ))}
+        <ul className="flex flex-1 flex-col gap-1">
+          {NAV.map((item) => {
+            const act = activa(item.href);
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  aria-current={act ? "page" : undefined}
+                  className={
+                    "relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] transition " +
+                    (act
+                      ? "bg-[#1a1830]/[0.06] font-medium text-[#1a1830]"
+                      : "text-[#6b6788] hover:bg-[#1a1830]/[0.04] hover:text-[#1a1830]")
+                  }
+                >
+                  {act && (
+                    <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-[#e0a030]" />
+                  )}
+                  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none"
+                       stroke={act ? "#e0a030" : "currentColor"} strokeWidth="1.7"
+                       strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d={item.d} />
+                  </svg>
+                  {item.etiqueta}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
 
         {docente && (
-          <div className="mb-6 px-1 text-center">
-            <p className="truncate text-[12px] leading-tight text-[#1a1830]">{docente.nombre}</p>
-            <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.1em] text-[#a5a2b8]">
+          <div className="mt-4 border-t border-[#1a1830]/10 px-3 pt-4">
+            <p className="truncate text-[13px] leading-tight text-[#1a1830]">
+              {docente.nombre}
+            </p>
+            <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-[#a5a2b8]">
               {docente.rol}
             </p>
           </div>
@@ -120,13 +128,14 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 
         <button
           onClick={salir}
-          title="Salir"
-          className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8e8ba5] transition hover:bg-[#c0392b]/10 hover:text-[#c0392b]"
+          className="mt-2 flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] text-[#8e8ba5] transition hover:bg-[#c0392b]/[0.08] hover:text-[#c0392b]"
         >
-          <svg viewBox="0 0 24 24" className="h-[19px] w-[19px]" fill="none" stroke="currentColor"
-               strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none"
+               stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"
+               strokeLinejoin="round" aria-hidden>
             <path d={ICONO_SALIR} />
           </svg>
+          Cerrar sesión
         </button>
       </nav>
 
@@ -148,7 +157,7 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
             href={item.href}
             aria-current={activa(item.href) ? "page" : undefined}
             className={
-              "flex flex-1 flex-col items-center gap-1 py-2.5 transition " +
+              "relative flex flex-1 flex-col items-center gap-1 py-2.5 transition " +
               (activa(item.href) ? "text-[#1a1830]" : "text-[#a5a2b8]")
             }
           >
